@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect width="200" height="200" fill="#F5F0E8"/>
+  <!-- Outer arabesque circle -->
+  <circle cx="100" cy="100" r="88" stroke="#7B2435" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <!-- Inner decorative ring -->
+  <circle cx="100" cy="100" r="72" stroke="#B8860B" stroke-width="1"/>
+  <!-- Eight-pointed star (Mughal motif) -->
+  <polygon points="100,28 108,68 148,60 116,88 148,116 108,108 100,148 92,108 52,116 84,88 52,60 92,68" fill="none" stroke="#7B2435" stroke-width="1.5"/>
+  <!-- Central dot -->
+  <circle cx="100" cy="100" r="6" fill="#7B2435"/>
+  <!-- Four petal motif -->
+  <ellipse cx="100" cy="78" rx="7" ry="14" fill="#B8860B" opacity="0.7"/>
+  <ellipse cx="100" cy="122" rx="7" ry="14" fill="#B8860B" opacity="0.7"/>
+  <ellipse cx="78" cy="100" rx="14" ry="7" fill="#B8860B" opacity="0.7"/>
+  <ellipse cx="122" cy="100" rx="14" ry="7" fill="#B8860B" opacity="0.7"/>
+  <!-- Center -->
+  <circle cx="100" cy="100" r="4" fill="#F5F0E8"/>
+</svg>

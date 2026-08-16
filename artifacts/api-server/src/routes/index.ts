@@ -1,0 +1,46 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import artworksRouter from "./artworks";
+import artworkSearchRouter from "./artwork-search";
+import artistsRouter from "./artists";
+import cartRouter from "./cart";
+import galleryRouter from "./gallery";
+import enquiriesRouter from "./enquiries";
+import adminAuthRouter from "./admin-auth";
+import adminArtistsRouter from "./admin-artists";
+import artistPortalRouter from "./artist-portal";
+import storageRouter from "./storage";
+import portfolioRouter from "./portfolio";
+import shopRouter from "./shop";
+import lookupRouter from "./lookup";
+import galleryCommissionRouter from "./gallery-commission";
+import supplierRouter from "./supplier";
+import shopDetailsRouter from "./shop-details";
+import ordersRouter from "./orders";
+import galleryPortalRouter from "./gallery-portal";
+import collectorRouter from "./collector";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(artworkSearchRouter);
+router.use(artworksRouter);
+router.use(artistsRouter);
+router.use(cartRouter);
+router.use(galleryRouter);
+router.use(enquiriesRouter);
+router.use(adminAuthRouter);
+router.use(adminArtistsRouter);
+router.use(artistPortalRouter);
+router.use(storageRouter);
+router.use(portfolioRouter);
+router.use(shopRouter);
+router.use(lookupRouter);
+router.use(galleryCommissionRouter);
+router.use(supplierRouter);
+router.use(shopDetailsRouter);
+router.use(ordersRouter);
+router.use(galleryPortalRouter);
+router.use(collectorRouter);
+
+export default router;

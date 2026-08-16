@@ -1,0 +1,66 @@
+# ============================================================================
+# SECURITY: Minimum release age for npm packages (supply-chain attack defense)
+# ============================================================================
+#
+# Any npm package version must have been published for at least 1 day (1440
+# minutes) before pnpm will install it. Malicious npm releases are typically
+# discovered and pulled within hours, so a 1-day delay is a strong buffer.
+#
+# DO NOT DISABLE THIS. If you urgently need a package inside the 1-day window
+# (e.g. a security bugfix), add a `minimumReleaseAgeExclude` allowlist below
+# and remove the exclusion once the window has passed.
+# ============================================================================
+minimumReleaseAge: 1440
+
+packages:
+  - artifacts/*
+  - lib/*
+
+catalog:
+  '@tailwindcss/vite': ^4.1.14
+  '@tanstack/react-query': ^5.90.21
+  '@types/node': ^25.3.3
+  '@types/react': ^19.2.0
+  '@types/react-dom': ^19.2.0
+  '@vitejs/plugin-react': ^5.0.4
+  class-variance-authority: ^0.7.1
+  clsx: ^2.1.1
+  drizzle-orm: ^0.45.2
+  framer-motion: ^12.23.24
+  lucide-react: ^0.545.0
+  react: 19.1.0
+  react-dom: 19.1.0
+  tailwind-merge: ^3.3.1
+  tailwindcss: ^4.1.14
+  tsx: ^4.21.0
+  vite: ^7.3.2
+  wouter: ^3.3.5
+  # zod 3.25 ships the v4 API under the `zod/v4` subpath, which is what every
+  # schema file in this repo imports. Do not drop below 3.25.
+  zod: ^3.25.76
+
+autoInstallPeers: false
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+  - unrs-resolver
+
+overrides:
+  # drizzle-kit bundles an old, vulnerable esbuild internally - pin it forward.
+  '@esbuild-kit/esm-loader': 'npm:tsx@^4.21.0'
+  esbuild: '0.27.3'
+  '@google-cloud/promisify': '^4.0.0'
+
+allowBuilds:
+  '@clerk/shared': true
+  esbuild: true
+
+#
+# NOTE: the Replit version of this file also excluded every non-linux-x64
+# platform binary for esbuild / rollup / lightningcss / @tailwindcss/oxide.
+# That is correct on Replit's linux-x64 containers and FATAL anywhere else -
+# on Windows or macOS pnpm would refuse to install the native binary the
+# bundler needs. Those exclusions have been removed so this repo installs on
+# any machine. If you redeploy to a single-platform linux host and want the
+# smaller install, re-add them there, not here.
