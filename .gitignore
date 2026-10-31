@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.tsbuildinfo
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+Thumbs.db
+*.log
+.cache/
+.vite/
+
+# raw database dump — contains real supplier/order data, never commit
+maktaba-alfann-db.sql
+*.sql.dump
+
+# images uploaded on this machine (local storage)
+/uploads/

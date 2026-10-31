@@ -1,0 +1,18 @@
+# Secrets and private data: never in the image
+.env
+.env.*
+*.sql.dump
+maktaba-alfann-db.sql
+typecheck-schema.sql
+uploads/
+_to_delete/
+
+# Rebuilt inside the image
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.git
+.vite
+.cache
+docs
+*.log
