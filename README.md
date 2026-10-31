@@ -34,6 +34,7 @@ read-only login for browsing the live database.
 The root `Dockerfile` builds one container that serves the website and `/api`
 on port 8080 (health check: `/api/healthz`). Mount a persistent volume at
 `/data` — uploaded images are stored in `/data/uploads`.
+Full step-by-step guide: [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
 
 ## Environment variables
 

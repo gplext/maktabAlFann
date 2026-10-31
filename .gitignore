@@ -20,3 +20,4 @@ maktaba-alfann-db.sql
 
 # images uploaded on this machine (local storage)
 /uploads/
+*.dump
