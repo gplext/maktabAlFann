@@ -70,7 +70,7 @@ function OrnateFrame({ item, size = "md" }: { item: LineItem; size?: "sm" | "md"
       >
         {/* Inner mat */}
         <div className="absolute inset-[6px] border border-amber-900/30 z-10 pointer-events-none" />
-        <img
+        <img loading="lazy" decoding="async"
           src={item.imageUrl}
           alt={item.title}
           className="w-full h-full object-cover"
@@ -243,7 +243,7 @@ function OrdersList({ orders, onChange }: { orders: Order[]; onChange: () => voi
                   {li.imageUrl && (
                     <div className="w-14 h-14 overflow-hidden bg-background flex-shrink-0 border border-border"
                          style={{ boxShadow: "0 0 0 2px #c9a84c40" }}>
-                      <img src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

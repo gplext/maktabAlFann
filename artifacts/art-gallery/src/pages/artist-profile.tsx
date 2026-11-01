@@ -2,6 +2,7 @@ import { useGetArtist, useGetArtistPortfolio, getGetArtistQueryKey, getGetArtist
 import { useParams, Link } from "wouter";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
+import { usePageMeta, clip, SITE_NAME } from "@/lib/seo";
 
 type AdminPortfolioItem = { url: string; label?: string };
 
@@ -14,6 +15,11 @@ export default function ArtistProfile() {
   const { data: portfolio } = useGetArtistPortfolio(artistId, {
     query: { enabled: !!id, queryKey: getGetArtistPortfolioQueryKey(artistId) }
   });
+  usePageMeta(artist ? {
+    title: clip(`${artist.name} — ${artist.country === "Pakistan" || !artist.country ? "Pakistani" : artist.country} Artist | ${SITE_NAME}`, 70),
+    description: clip(((artist.shortBio ?? "").trim().length >= 70 ? artist.shortBio : `${(artist.shortBio ?? "").trim() ? (artist.shortBio ?? "").trim().replace(/[.\s]*$/, ". ") : ""}${artist.name} is an artist from ${artist.country || "Pakistan"}. See their story and original works at ${SITE_NAME}.`) ?? "", 160),
+    image: artist.photoUrl,
+  } : null);
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
@@ -38,7 +44,7 @@ export default function ArtistProfile() {
           <div className="lg:col-span-5">
             <div className="sticky top-32">
               <div className="relative p-4 bg-card border border-border">
-                <img 
+                <img loading="lazy" decoding="async" 
                   src={artist.photoUrl} 
                   alt={artist.name} 
                   className="w-full aspect-[3/4] object-cover grayscale-[30%]"
@@ -113,7 +119,7 @@ export default function ArtistProfile() {
                   <Link href={`/art/${artwork.id}`} className="group block">
                     <div className="bg-card p-4 border border-border">
                       <div className="aspect-[4/3] overflow-hidden mb-6">
-                        <img 
+                        <img loading="lazy" decoding="async" 
                           src={artwork.imageUrl} 
                           alt={artwork.title}
                           className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700"
@@ -155,7 +161,7 @@ export default function ArtistProfile() {
                 >
                   <div className="relative overflow-hidden bg-card border border-border group/port">
                     <div className="aspect-[4/3] overflow-hidden">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={url}
                         alt={`${artist.name} — Portfolio ${idx + 1}`}
                         className="w-full h-full object-cover grayscale-[15%] group-hover/port:grayscale-0 transition-all duration-700 group-hover/port:scale-[1.03]"
@@ -193,7 +199,7 @@ export default function ArtistProfile() {
                 >
                   <div className="relative overflow-hidden bg-card border border-border group/port">
                     <div className="aspect-[4/3] overflow-hidden">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={item.url}
                         alt={item.label ?? `${artist.name} — Special Portfolio ${idx + 1}`}
                         className="w-full h-full object-cover grayscale-[15%] group-hover/port:grayscale-0 transition-all duration-700 group-hover/port:scale-[1.03]"

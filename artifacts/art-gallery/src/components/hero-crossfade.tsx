@@ -48,7 +48,7 @@ export function HeroCrossfade({ slides, intervalMs = 5000, className = "" }: Pro
         >
           <img
             src={active.imageUrl}
-            alt={active.category}
+            alt={`${active.category} — Pakistani art at Maktaba Al-Fann`}
             className="w-full h-full object-cover"
             loading="eager"
           />

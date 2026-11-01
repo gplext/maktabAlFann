@@ -1,4 +1,6 @@
-import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
+import { lazy, Suspense, useEffect } from "react";
+import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
+import { applyPageMeta, SITE_NAME } from "@/lib/seo";
 import { AuthProvider } from "@/lib/auth";
 import { PortalGuard } from "@/lib/portal";
 import { SignInPage, SignUpPage } from "@/pages/auth";
@@ -15,27 +17,35 @@ import Cart from "@/pages/cart";
 import About from "@/pages/about";
 import SpecialtyArt from "@/pages/specialty-art";
 import Shop from "@/pages/shop";
-import Admin from "@/pages/admin";
-import ArtistPortal from "@/pages/artist-portal";
-import ArtistPortalRegister from "@/pages/artist-portal-register";
-import ArtistPortalSubmit from "@/pages/artist-portal-submit";
-import GalleryPortalPage from "@/pages/gallery-portal-page";
+const Admin = lazy(() => import("@/pages/admin"));
+const ArtistPortal = lazy(() => import("@/pages/artist-portal"));
+const ArtistPortalRegister = lazy(() => import("@/pages/artist-portal-register"));
+const ArtistPortalSubmit = lazy(() => import("@/pages/artist-portal-submit"));
+const GalleryPortalPage = lazy(() => import("@/pages/gallery-portal-page"));
 import Portals from "@/pages/portals";
-import CollectorPortal from "@/pages/collector-portal";
-import StaffConsole from "@/pages/staff";
+const CollectorPortal = lazy(() => import("@/pages/collector-portal"));
+const StaffConsole = lazy(() => import("@/pages/staff"));
 import MuseumPage from "@/pages/museum";
-import AccountPage from "@/pages/account";
+const AccountPage = lazy(() => import("@/pages/account"));
 import { TopNav } from "@/components/top-nav";
 
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+/** Private areas (consoles, portals, cart) are kept out of search results. */
+const PRIVATE = /^\/(admin|staff|account|cart|museum|portals|collector|artist-portal|gallery-portal|sign-in|sign-up)(\/|$)/;
+
 function Router() {
+  const [location] = useLocation();
+  useEffect(() => {
+    if (PRIVATE.test(location)) applyPageMeta({ title: SITE_NAME, noindex: true });
+  }, [location]);
   return (
     <div className="min-h-screen flex flex-col">
       <TopNav />
       <main className="flex-1">
+        <Suspense fallback={<div className="min-h-[50vh]" />}>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/art" component={ArtCollection} />
@@ -61,6 +71,7 @@ function Router() {
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route component={NotFound} />
         </Switch>
+        </Suspense>
       </main>
     </div>
   );

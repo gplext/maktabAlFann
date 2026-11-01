@@ -839,7 +839,7 @@ function ArtistsTab() {
         {!artists.length && <p className="p-4 text-sm text-foreground/50">No artists waiting.</p>}
         {artists.map((a) => (
           <div key={a.id} className="p-4 flex flex-wrap items-center gap-4" data-artist={a.id}>
-            <div className="w-12 h-12 bg-muted/30 overflow-hidden shrink-0">{a.photoUrl && <img src={a.photoUrl} alt={a.name} className="w-full h-full object-cover" />}</div>
+            <div className="w-12 h-12 bg-muted/30 overflow-hidden shrink-0">{a.photoUrl && <img loading="lazy" decoding="async" src={a.photoUrl} alt={a.name} className="w-full h-full object-cover" />}</div>
             <div className="flex-1 min-w-[180px]"><p className="font-medium">{a.name}</p><p className="text-xs text-foreground/50">{[a.style, a.country].filter(Boolean).join(" · ") || "—"}</p></div>
             <a href={`/artists/${a.id}`} target="_blank" rel="noreferrer" className={btn}>View profile</a>
             <button className={btnPrimary} onClick={() => void act(() => reviewApi(`artists/${a.id}/approve`, "PATCH"), `${a.name} verified.`)}>Verify</button>
@@ -935,7 +935,7 @@ function GalleriesTab() {
         {!shown.length && <p className="p-4 text-sm text-foreground/50">No galleries here.</p>}
         {shown.map((g) => (
           <div key={g.id} className="p-4 flex flex-wrap items-center gap-4" data-gallery={g.id}>
-            <div className="w-12 h-12 bg-muted/30 overflow-hidden shrink-0">{g.logoUrl && <img src={g.logoUrl} alt={g.name} className="w-full h-full object-contain" />}</div>
+            <div className="w-12 h-12 bg-muted/30 overflow-hidden shrink-0">{g.logoUrl && <img loading="lazy" decoding="async" src={g.logoUrl} alt={g.name} className="w-full h-full object-contain" />}</div>
             <div className="flex-1 min-w-[200px]">
               <p className="font-medium">{g.name}</p>
               <p className="text-xs text-foreground/50">{[g.city, g.country].filter(Boolean).join(", ") || "—"} · {[g.email, g.phone].filter(Boolean).join(" · ") || "no contact"}</p>

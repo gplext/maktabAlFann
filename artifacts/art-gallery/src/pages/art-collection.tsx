@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import { Loader2, Filter, X, Search, Sparkles, ChevronDown } from "lucide-react";
 import type { Artwork } from "@workspace/api-client-react";
+import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
 /**
  * Filter state.
@@ -22,6 +23,7 @@ type Filters = {
 };
 
 export default function ArtCollection() {
+  usePageMeta({ title: `Buy Original Pakistani Paintings Online | ${SITE_NAME}`, description: "Browse original paintings, calligraphy, drawings and sculpture by Pakistani artists. Filter by style, medium and size, and order online with delivery in Pakistan and abroad." });
   const [filters, setFilters] = useState<Filters>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
@@ -399,7 +401,7 @@ function MosaicGroup({
       <div className="flex gap-2 mb-2" style={{ height: "440px" }}>
         {/* Large hero */}
         <Link href={`/art/${hero.id}`} className="block group overflow-hidden bg-card border border-border flex-shrink-0 relative" style={{ width: "66.67%" }}>
-          <img
+          <img loading="lazy" decoding="async"
             src={hero.imageUrl}
             alt={hero.title}
             className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
@@ -430,7 +432,7 @@ function MosaicGroup({
                 href={`/art/${art.id}`}
                 className="block group overflow-hidden bg-card border border-border relative flex-1"
               >
-                <img
+                <img loading="lazy" decoding="async"
                   src={art.imageUrl}
                   alt={art.title}
                   className="w-full h-full object-cover grayscale-[15%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
@@ -454,7 +456,7 @@ function MosaicGroup({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           {strip.map((art) => (
             <Link key={art.id} href={`/art/${art.id}`} className="block group overflow-hidden bg-card border border-border relative h-[140px] md:h-[160px]">
-              <img
+              <img loading="lazy" decoding="async"
                 src={art.imageUrl}
                 alt={art.title}
                 className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-600 group-hover:scale-105"
@@ -474,7 +476,7 @@ function MosaicGroup({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
           {rest.map((art) => (
             <Link key={art.id} href={`/art/${art.id}`} className="block group overflow-hidden bg-card border border-border relative h-[140px] md:h-[160px]">
-              <img
+              <img loading="lazy" decoding="async"
                 src={art.imageUrl}
                 alt={art.title}
                 className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-600 group-hover:scale-105"
@@ -518,7 +520,7 @@ function SearchResultCard({ artwork }: { artwork: Artwork }) {
   return (
     <Link href={`/art/${artwork.id}`} className="block group">
       <div className="aspect-[3/4] overflow-hidden bg-card border border-border relative">
-        <img
+        <img loading="lazy" decoding="async"
           src={artwork.imageUrl}
           alt={artwork.title}
           className="w-full h-full object-cover grayscale-[15%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"

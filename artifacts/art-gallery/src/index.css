@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Scheherazade+New:wght@400;500;700&display=swap');
+/* Google Fonts are loaded from index.html (a <link> is discovered earlier than a CSS @import). */
 @layer theme, base, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";

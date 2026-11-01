@@ -115,7 +115,7 @@ export function ImageUploader({ onUploadComplete, label = "Upload Image", classN
 
         {preview && state !== "idle" && (
           <div className="flex flex-col items-center gap-4 w-full">
-            <img src={preview} alt="Preview" className="max-h-48 max-w-full object-contain border border-border" />
+            <img loading="lazy" decoding="async" src={preview} alt="Preview" className="max-h-48 max-w-full object-contain border border-border" />
             {state === "uploading" && (
               <div className="w-full max-w-xs">
                 <div className="flex items-center gap-2 mb-1.5">

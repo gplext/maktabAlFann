@@ -9,8 +9,19 @@ import { pool } from "@workspace/db";
 import { handleStripeEvent, verifyStripeSignature } from "./lib/orders";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { pageMeta, renderHead, robotsTxt, sitemapXml, indexHtml } from "./lib/seo";
 
 const app: Express = express();
+
+// Security headers (also a trust signal for search engines). No "X-Powered-By: Express".
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  if (process.env.NODE_ENV === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000");
+  next();
+});
 
 app.use(
   pinoHttp({
@@ -106,11 +117,28 @@ if (staticDir && fs.existsSync(path.join(staticDir, "index.html"))) {
   // Other public files (logo, artwork images, frame textures): cache for a week.
   // redirect:false: folders such as /artworks share names with site pages, so never redirect to "/artworks/".
   app.use(express.static(staticDir, { maxAge: "7d", index: false, redirect: false }));
-  // Every other GET outside /api and /assets is a page of the single-page app. index.html is
-  // never cached, so visitors pick up a new deploy straight away.
-  app.get(/^(?!\/(api|assets)(\/|$)).*/, (_req, res) => {
-    res.setHeader("Cache-Control", "no-cache");
-    res.sendFile(path.join(staticDir, "index.html"));
+  // robots.txt and sitemap.xml are generated (sitemap lists every public artwork and artist).
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain").setHeader("Cache-Control", "public, max-age=3600");
+    res.send(robotsTxt(req));
+  });
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      res.type("application/xml").setHeader("Cache-Control", "public, max-age=3600");
+      res.send(await sitemapXml(req));
+    } catch (err) {
+      req.log?.error({ err }, "sitemap failed");
+      res.status(500).type("text/plain").send("Sitemap unavailable");
+    }
+  });
+  // Every other GET outside /api and /assets is a page of the single-page app. The server
+  // fills in that page's title, description, share image and structured data, and answers
+  // 404 for pages that don't exist. index.html is never cached, so a new deploy shows at once.
+  app.get(/^(?!\/(api|assets)(\/|$)).*/, async (req, res) => {
+    const meta = await pageMeta(req, req.path);
+    res.status(meta.status).setHeader("Cache-Control", "no-cache");
+    if (meta.noindex) res.setHeader("X-Robots-Tag", "noindex");
+    res.type("html").send(renderHead(indexHtml(staticDir), meta));
   });
 }
 

@@ -3,11 +3,13 @@ import type { ShopItem } from "@workspace/api-client-react";
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Package } from "lucide-react";
+import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
 const TYPES = ["All", "Stationary", "Frames", "Hanging Support"] as const;
 type FilterType = (typeof TYPES)[number];
 
 export default function Shop() {
+  usePageMeta({ title: `Frames, Hanging Supports & Art Supplies | ${SITE_NAME}`, description: "Frames, hanging supports and art supplies chosen to fit and protect the artworks in the Maktaba Al-Fann collection." });
   const [activeType, setActiveType] = useState<FilterType>("All");
 
   const { data: allItems, isLoading } = useListShopItems(
@@ -134,7 +136,7 @@ function ShopCard({ item }: { item: ShopItem }) {
     <div className="group bg-card border border-border flex flex-col hover:border-primary/40 transition-colors duration-300">
       <div className="aspect-square overflow-hidden bg-background relative">
         {item.imageUrl ? (
-          <img
+          <img loading="lazy" decoding="async"
             src={item.imageUrl}
             alt={item.name}
             className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"

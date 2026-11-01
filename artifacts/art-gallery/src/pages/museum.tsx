@@ -60,7 +60,7 @@ function Inspect({ art, onClose }: { art: MuseumArtwork; onClose: () => void }) 
         onPointerMove={(e) => { if (drag.current && zoom > 1) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y }); }}
         onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}
         style={{ touchAction: "none" }}>
-        <img src={art.imageUrl} alt={art.title} draggable={false}
+        <img loading="lazy" decoding="async" src={art.imageUrl} alt={art.title} draggable={false}
           className="max-h-full max-w-full object-contain"
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: drag.current ? "none" : "transform 120ms ease-out" }} />
       </div>

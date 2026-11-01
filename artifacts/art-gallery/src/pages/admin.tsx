@@ -691,7 +691,7 @@ export default function Admin() {
                       {(enq.items as EnquiryItem[]).map((item) => (
                         <Link key={item.artworkId} href={`/art/${item.artworkId}`}
                           className="flex items-center gap-3 bg-background border border-border p-3 hover:border-primary/40 transition-colors group">
-                          {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-12 h-12 object-cover flex-shrink-0" />}
+                          {item.imageUrl && <img loading="lazy" decoding="async" src={item.imageUrl} alt={item.title} className="w-12 h-12 object-cover flex-shrink-0" />}
                           <div className="min-w-0">
                             <p className="font-display text-sm text-foreground truncate group-hover:text-primary transition-colors">{item.title}</p>
                             <p className="text-xs text-foreground/50 truncate">by {item.artistName}</p>
@@ -850,7 +850,7 @@ export default function Admin() {
                     className={`w-full flex items-center gap-3 p-4 border-b border-border/50 text-left transition-colors hover:bg-background/60 ${selectedArtistId === artist.id ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"}`}
                   >
                     <div className="w-10 h-10 flex-shrink-0 bg-background border border-border overflow-hidden">
-                      {artist.photoUrl ? <img src={artist.photoUrl} alt={artist.name} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-foreground/20 mt-2.5" />}
+                      {artist.photoUrl ? <img loading="lazy" decoding="async" src={artist.photoUrl} alt={artist.name} className="w-full h-full object-cover" /> : <User size={16} className="m-auto text-foreground/20 mt-2.5" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-display text-sm text-primary truncate">{artist.name}</p>
@@ -934,7 +934,7 @@ export default function Admin() {
                   <div className="p-6 space-y-6">
                     <div className="flex items-start gap-4 border-b border-border pb-5">
                       <div className="w-20 h-20 flex-shrink-0 bg-background border border-border overflow-hidden">
-                        {selectedArtist.photoUrl ? <img src={selectedArtist.photoUrl} alt={selectedArtist.name} className="w-full h-full object-cover" /> : <User size={24} className="m-auto text-foreground/20 mt-6" />}
+                        {selectedArtist.photoUrl ? <img loading="lazy" decoding="async" src={selectedArtist.photoUrl} alt={selectedArtist.name} className="w-full h-full object-cover" /> : <User size={24} className="m-auto text-foreground/20 mt-6" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
@@ -1031,7 +1031,7 @@ export default function Admin() {
                               <div className="grid grid-cols-4 gap-2">
                                 {artistPortfolio.imageUrls.slice(0, 8).map((url, i) => (
                                   <div key={i} className="aspect-square overflow-hidden bg-background border border-border">
-                                    <img src={url} alt={`Portfolio ${i+1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "https://picsum.photos/seed/err/80/80"; }} />
+                                    <img loading="lazy" decoding="async" src={url} alt={`Portfolio ${i+1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "https://picsum.photos/seed/err/80/80"; }} />
                                   </div>
                                 ))}
                               </div>
@@ -1047,7 +1047,7 @@ export default function Admin() {
                                 {artistPortfolio.adminItems.map((item, idx) => (
                                   <div key={idx} className="relative group/adm">
                                     <div className="aspect-square overflow-hidden bg-background border border-secondary/30">
-                                      <img src={item.url} alt={item.label ?? `Admin item ${idx+1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "https://picsum.photos/seed/err/80/80"; }} />
+                                      <img loading="lazy" decoding="async" src={item.url} alt={item.label ?? `Admin item ${idx+1}`} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "https://picsum.photos/seed/err/80/80"; }} />
                                     </div>
                                     {item.label && <p className="text-[9px] truncate text-foreground/50 mt-0.5">{item.label}</p>}
                                     <button onClick={() => removeAdminPortfolioItem(idx)}
@@ -1501,7 +1501,7 @@ export default function Admin() {
                   {shopItems.map((item) => (
                     <div key={item.id} className={`flex gap-4 bg-card border p-4 items-center transition-colors ${editingShopId === item.id ? "border-secondary/60" : "border-border"}`}>
                       <div className="w-16 h-16 flex-shrink-0 bg-background border border-border overflow-hidden">
-                        {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Package size={18} className="m-auto text-foreground/20 mt-5" />}
+                        {item.imageUrl ? <img loading="lazy" decoding="async" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Package size={18} className="m-auto text-foreground/20 mt-5" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1858,7 +1858,7 @@ export default function Admin() {
                   {filtered.map((g) => (
                     <div key={g.id} className="bg-card border border-border p-6 flex gap-5 items-start">
                       {g.logoUrl ? (
-                        <img src={g.logoUrl} alt={g.name} className="w-16 h-16 object-cover border border-border flex-shrink-0" />
+                        <img loading="lazy" decoding="async" src={g.logoUrl} alt={g.name} className="w-16 h-16 object-cover border border-border flex-shrink-0" />
                       ) : (
                         <div className="w-16 h-16 bg-foreground/5 border border-border flex items-center justify-center flex-shrink-0">
                           <span className="text-foreground/20 font-display text-xl">{g.name[0]}</span>
@@ -2022,7 +2022,7 @@ export default function Admin() {
                           <div key={li.id} className="flex items-center gap-4">
                             {li.imageUrl && (
                               <div className="w-12 h-12 overflow-hidden bg-background flex-shrink-0 border border-border">
-                                <img src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
+                                <img loading="lazy" decoding="async" src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -2139,7 +2139,7 @@ function ArtworkReviewCard({
     <div className="bg-card border border-border">
       <div className="aspect-square overflow-hidden bg-background relative">
         {art.imageUrl
-          ? <img src={art.imageUrl} alt={art.title} className="w-full h-full object-cover" />
+          ? <img loading="lazy" decoding="async" src={art.imageUrl} alt={art.title} className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={40} className="text-foreground/20" /></div>}
         <div className="absolute top-3 left-3">
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs border uppercase tracking-widest ${statusStyles[art.status] ?? statusStyles["pending"]}`}>

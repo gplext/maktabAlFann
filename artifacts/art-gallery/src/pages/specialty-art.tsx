@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { Loader2 } from "lucide-react";
+import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
 const SPECIALTY_TYPES = ["AI Art", "Sculpture Work", "Handicraft"] as const;
 type SpecialtyType = (typeof SPECIALTY_TYPES)[number];
@@ -15,6 +16,7 @@ const TYPE_DESCRIPTIONS: Record<SpecialtyType, string> = {
 };
 
 export default function SpecialtyArt() {
+  usePageMeta({ title: `Specialty Art — Sculpture, Handicraft & AI Art | ${SITE_NAME}`, description: "Discover specialty works by Pakistani creators: sculpture, traditional handicraft and AI art, each with the story of its making." });
   const [activeFilter, setActiveFilter] = useState<SpecialtyType | "All">("All");
 
   const { data: allSpecialty, isLoading } = useListArtworks({ limit: 200 });
@@ -208,7 +210,7 @@ function SpecialtyMosaicGroup({
           className="block group overflow-hidden bg-card border border-border flex-shrink-0 relative"
           style={{ width: "66.67%" }}
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={hero.imageUrl}
             alt={hero.title}
             className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
@@ -242,7 +244,7 @@ function SpecialtyMosaicGroup({
                 href={`/art/${art.id}`}
                 className="block group overflow-hidden bg-card border border-border relative flex-1"
               >
-                <img
+                <img loading="lazy" decoding="async"
                   src={art.imageUrl}
                   alt={art.title}
                   className="w-full h-full object-cover grayscale-[15%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
@@ -274,7 +276,7 @@ function SpecialtyMosaicGroup({
               href={`/art/${art.id}`}
               className="block group overflow-hidden bg-card border border-border relative h-[140px] md:h-[160px]"
             >
-              <img
+              <img loading="lazy" decoding="async"
                 src={art.imageUrl}
                 alt={art.title}
                 className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-600 group-hover:scale-105"
@@ -302,7 +304,7 @@ function SpecialtyMosaicGroup({
               href={`/art/${art.id}`}
               className="block group overflow-hidden bg-card border border-border relative h-[140px] md:h-[160px]"
             >
-              <img
+              <img loading="lazy" decoding="async"
                 src={art.imageUrl}
                 alt={art.title}
                 className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-600 group-hover:scale-105"

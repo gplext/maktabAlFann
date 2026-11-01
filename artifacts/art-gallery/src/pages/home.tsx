@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { HeroCrossfade, type HeroSlide } from "@/components/hero-crossfade";
+import { usePageMeta, DEFAULT_TITLE, DEFAULT_DESC } from "@/lib/seo";
 
 const STATIC_SLIDES: HeroSlide[] = [
   { imageUrl: "https://picsum.photos/seed/lahore-fort/1920/1080",  label: "Architecture",    category: "Mughal Grandeur" },
@@ -42,6 +43,7 @@ const MOOD_CHIPS = [
 ];
 
 export default function Home() {
+  usePageMeta({ title: DEFAULT_TITLE, description: DEFAULT_DESC });
   const { data: artworks, isLoading: loadingArtworks } = useGetFeaturedArtworks();
   const { data: stats, isLoading: loadingStats } = useGetGalleryStats();
   const [searchQuery, setSearchQuery] = useState("");
@@ -232,7 +234,7 @@ export default function Home() {
                       className="block w-full md:w-[58%] group overflow-hidden bg-card flex-shrink-0"
                     >
                       <div className="aspect-[4/3] md:aspect-auto md:h-[420px] overflow-hidden relative">
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={artwork.imageUrl}
                           alt={artwork.title}
                           className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
@@ -353,7 +355,7 @@ export default function Home() {
                 >
                   <Link href={`/art/${artwork.id}`} className="block group">
                     <div className="aspect-[2/3] overflow-hidden bg-background border border-border relative">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={artwork.imageUrl}
                         alt={artwork.title}
                         className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"

@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { Loader2, Search, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
 export default function Artists() {
+  usePageMeta({ title: `Pakistani Artists — Painters & Sculptors | ${SITE_NAME}`, description: "Meet the Pakistani artists of Maktaba Al-Fann: their stories, styles, influences and original works available to buy online." });
   const [filters, setFilters] = useState<{ search?: string; country?: string; style?: string }>({});
   const { data: artists, isLoading } = useListArtists(filters);
 
@@ -166,7 +168,7 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
           className="absolute inset-0"
         >
           <Link href={`/artists/${artist.id}`} className="block w-full h-full">
-            <img
+            <img loading="lazy" decoding="async"
               src={artist.photoUrl}
               alt={artist.name}
               className="w-full h-full object-cover object-top grayscale-[15%]"
@@ -338,7 +340,7 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
       <div className="md:w-[30%] flex-shrink-0 flex flex-col gap-1 p-1">
         <Link href={`/artists/${artist.id}`} className="block overflow-hidden group/photo relative">
           <div className="aspect-[3/4] relative">
-            <img
+            <img loading="lazy" decoding="async"
               src={artist.photoUrl}
               alt={artist.name}
               className="w-full h-full object-cover object-top grayscale-[20%] group-hover/photo:grayscale-0 transition-all duration-700 group-hover/photo:scale-[1.02]"
@@ -380,7 +382,7 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
             {artworks.map((aw) => (
               <Link key={aw.id} href={`/artists/${artist.id}`} className="block overflow-hidden group/thumb">
                 <div className="aspect-[4/3] relative">
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={aw.thumbnailUrl ?? aw.imageUrl}
                     alt={aw.title}
                     className="w-full h-full object-cover grayscale-[20%] group-hover/thumb:grayscale-0 transition-all duration-500 group-hover/thumb:scale-[1.04]"
@@ -395,7 +397,7 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
         ) : portfolio?.imageUrls?.[0] ? (
           <Link href={`/artists/${artist.id}`} className="block overflow-hidden group/thumb">
             <div className="aspect-[4/3] relative">
-              <img
+              <img loading="lazy" decoding="async"
                 src={portfolio.imageUrls[0]}
                 alt={`Portfolio by ${artist.name}`}
                 className="w-full h-full object-cover grayscale-[20%] group-hover/thumb:grayscale-0 transition-all duration-500 group-hover/thumb:scale-[1.04]"

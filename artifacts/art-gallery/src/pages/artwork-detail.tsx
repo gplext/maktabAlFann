@@ -15,6 +15,7 @@ import { useCartSession } from "@/hooks/useCartSession";
 import { useToast } from "@/hooks/use-toast";
 import { formatMoney } from "@/lib/money";
 import Timeline from "@/components/timeline";
+import { usePageMeta, clip, SITE_NAME } from "@/lib/seo";
 
 export default function ArtworkDetail() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,11 @@ export default function ArtworkDetail() {
   const { data: addons } = useGetArtworkAddons(Number(id), {
     query: { enabled: !!id, queryKey: getGetArtworkAddonsQueryKey(Number(id)) },
   });
+  usePageMeta(artwork ? {
+    title: clip(`${artwork.title} by ${artwork.artistName} — ${artwork.artStyle || artwork.artCategory} | ${SITE_NAME}`, 70),
+    description: clip(((artwork.shortDescription ?? "").trim().length >= 70 ? artwork.shortDescription : `${(artwork.shortDescription ?? "").trim() ? (artwork.shortDescription ?? "").trim().replace(/[.\s]*$/, ". ") : ""}An original work by Pakistani artist ${artwork.artistName} — ${artwork.artStyle || artwork.artCategory}${artwork.year ? `, ${artwork.year}` : ""}. Available at ${SITE_NAME}.`) ?? "", 160),
+    image: artwork.imageUrl,
+  } : null);
 
   const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
 
@@ -139,7 +145,7 @@ export default function ArtworkDetail() {
         {/* ── Main image ── */}
         <div className="mb-24 relative overflow-hidden bg-card border border-border p-4 md:p-8" ref={ref}>
           <motion.div style={{ y: imgY }} className="relative aspect-[4/3] md:aspect-[16/9]">
-            <img src={artwork.imageUrl} alt={artwork.title} className="w-full h-full object-contain" />
+            <img src={artwork.imageUrl} alt={`${artwork.title} — ${artwork.artStyle || artwork.artCategory} by ${artwork.artistName}`} fetchPriority="high" className="w-full h-full object-contain" />
           </motion.div>
         </div>
 
@@ -295,9 +301,9 @@ export default function ArtworkDetail() {
               <div className="flex gap-0">
                 {artwork.artistPhotoUrl && (
                   <div className="w-28 flex-shrink-0 overflow-hidden bg-background">
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={artwork.artistPhotoUrl}
-                      alt={artwork.artistName}
+                      alt={`Portrait of ${artwork.artistName}`}
                       className="w-full h-full object-cover"
                       style={{ minHeight: "112px" }}
                     />
@@ -378,7 +384,7 @@ function RelatedWorks({
             <motion.div key={art.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06, duration: 0.6 }}>
               <Link href={`/art/${art.id}`} className="block group">
                 <div className="relative overflow-hidden bg-background border border-border h-[160px] md:h-[200px]">
-                  <img src={art.imageUrl} alt={art.title} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105" />
+                  <img loading="lazy" decoding="async" src={art.imageUrl} alt={art.title} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-50 group-hover:opacity-90 transition-opacity duration-500" />
                   <div className="absolute bottom-0 inset-x-0 p-3 translate-y-1 group-hover:translate-y-0 transition-transform duration-400">
                     <h4 className="font-display text-xs md:text-sm text-white leading-tight line-clamp-2">{art.title}</h4>

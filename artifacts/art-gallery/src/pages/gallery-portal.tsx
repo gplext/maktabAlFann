@@ -586,7 +586,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
       <aside className="w-56 fixed top-16 bottom-0 left-0 z-40 bg-card border-r border-border flex flex-col">
         <div className="p-5 border-b border-border">
           {gallery.logoUrl ? (
-            <img src={gallery.logoUrl} alt={gallery.name} className="w-14 h-14 object-cover border border-border mb-3" />
+            <img loading="lazy" decoding="async" src={gallery.logoUrl} alt={gallery.name} className="w-14 h-14 object-cover border border-border mb-3" />
           ) : (
             <div className="w-14 h-14 bg-foreground/5 border border-border flex items-center justify-center mb-3">
               <Building2 size={20} className="text-foreground/30" />
@@ -689,7 +689,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
               </div>
             ) : (
               <div className="space-y-5">
-                {gallery.logoUrl && <img src={gallery.logoUrl} alt={gallery.name} className="w-24 h-24 object-cover border border-border" />}
+                {gallery.logoUrl && <img loading="lazy" decoding="async" src={gallery.logoUrl} alt={gallery.name} className="w-24 h-24 object-cover border border-border" />}
                 <div className="space-y-3">
                   <Row label="Gallery Name" value={gallery.name} />
                   {gallery.description && <Row label="Description" value={gallery.description} />}
@@ -784,7 +784,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
                         </p>
                         <div className="flex items-center gap-3 bg-card border border-amber-200 p-3">
                           {artistMatch.photoUrl ? (
-                            <img src={artistMatch.photoUrl} alt={artistMatch.name} className="w-12 h-12 object-cover border border-amber-200 flex-shrink-0" />
+                            <img loading="lazy" decoding="async" src={artistMatch.photoUrl} alt={artistMatch.name} className="w-12 h-12 object-cover border border-amber-200 flex-shrink-0" />
                           ) : (
                             <div className="w-12 h-12 bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
                               <User size={16} className="text-amber-400" />
@@ -875,7 +875,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
                 {artists.map((artist) => (
                   <div key={artist.id} className="flex items-center gap-4 border border-border bg-card p-4">
                     {artist.photoUrl ? (
-                      <img src={artist.photoUrl} alt={artist.name} className="w-14 h-14 object-cover border border-border flex-shrink-0" />
+                      <img loading="lazy" decoding="async" src={artist.photoUrl} alt={artist.name} className="w-14 h-14 object-cover border border-border flex-shrink-0" />
                     ) : (
                       <div className="w-14 h-14 bg-foreground/5 border border-border flex items-center justify-center flex-shrink-0">
                         <User size={18} className="text-foreground/30" />
@@ -1084,7 +1084,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
                 {artworks.map((aw) => (
                   <div key={aw.id} className="border border-border bg-card group relative overflow-hidden">
                     {aw.imageUrl ? (
-                      <img src={aw.imageUrl} alt={aw.title} className="w-full aspect-[4/3] object-cover" />
+                      <img loading="lazy" decoding="async" src={aw.imageUrl} alt={aw.title} className="w-full aspect-[4/3] object-cover" />
                     ) : (
                       <div className="w-full aspect-[4/3] bg-foreground/5 flex items-center justify-center">
                         <ImageIcon size={24} className="text-foreground/20" />

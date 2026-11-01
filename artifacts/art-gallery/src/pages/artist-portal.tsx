@@ -679,7 +679,7 @@ export default function ArtistPortal() {
                 {profile ? (
                   <>
                     {profile.photoUrl ? (
-                      <img src={profile.photoUrl} alt={profile.name} className="w-14 h-14 object-cover border border-border mb-3" />
+                      <img loading="lazy" decoding="async" src={profile.photoUrl} alt={profile.name} className="w-14 h-14 object-cover border border-border mb-3" />
                     ) : (
                       <div className="w-14 h-14 bg-foreground/5 border border-border flex items-center justify-center mb-3">
                         <User size={20} className="text-foreground/30" />
@@ -773,7 +773,7 @@ export default function ArtistPortal() {
                     <div className="bg-card border border-border p-6">
                       {photoUrl && (
                         <div className="mb-4 flex items-center gap-4">
-                          <img src={photoUrl} alt="Profile" className="w-14 h-14 object-cover border border-border" />
+                          <img loading="lazy" decoding="async" src={photoUrl} alt="Profile" className="w-14 h-14 object-cover border border-border" />
                           <p className="text-xs text-foreground/50 uppercase tracking-widest">Current photo</p>
                         </div>
                       )}
@@ -890,7 +890,7 @@ export default function ArtistPortal() {
                     <div className="bg-card border border-border p-6">
                       {artworkImageUrl && (
                         <div className="mb-4">
-                          <img src={artworkImageUrl} alt="Current" className="h-32 object-contain border border-border" />
+                          <img loading="lazy" decoding="async" src={artworkImageUrl} alt="Current" className="h-32 object-contain border border-border" />
                         </div>
                       )}
                       <ImageUploader
@@ -1292,7 +1292,7 @@ export default function ArtistPortal() {
                       {artworks.map((art) => (
                         <div key={art.id} className="bg-card border border-border group">
                           <div className="aspect-square overflow-hidden bg-background relative">
-                            <img src={art.imageUrl} alt={art.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            <img loading="lazy" decoding="async" src={art.imageUrl} alt={art.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             <div className="absolute top-3 left-3"><StatusPill status={art.status} /></div>
                             {art.status === "approved" && (
                               <Link href={`/art/${art.id}`}
@@ -1466,7 +1466,7 @@ export default function ArtistPortal() {
                   <div className="bg-card border border-border p-6 mb-6">
                     <p className="text-[10px] uppercase tracking-widest text-foreground/50 mb-3">Signed in as</p>
                     <div className="flex items-center gap-3">
-                      {user?.imageUrl && <img src={user.imageUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-border" />}
+                      {user?.imageUrl && <img loading="lazy" decoding="async" src={user.imageUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-border" />}
                       <div>
                         <p className="font-display text-base text-primary">{user?.fullName ?? user?.username ?? "—"}</p>
                         <p className="text-xs text-foreground/50">{user?.primaryEmailAddress?.emailAddress ?? "—"}</p>

@@ -269,7 +269,7 @@ export default function Cart() {
                       </button>
 
                       <div className="w-full sm:w-1/3 aspect-square sm:aspect-auto sm:h-48 overflow-hidden bg-background relative">
-                        <img src={item.imageUrl} alt={item.title} className="w-full h-full object-contain" />
+                        <img loading="lazy" decoding="async" src={item.imageUrl} alt={item.title} className="w-full h-full object-contain" />
                         {inWarehouse && (
                           <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[9px] uppercase tracking-widest px-1.5 py-0.5">In Stock</span>
                         )}
@@ -578,7 +578,7 @@ export default function Cart() {
                           <div key={li.id} className="flex items-center gap-4">
                             {li.imageUrl && (
                               <div className="w-12 h-12 overflow-hidden bg-background flex-shrink-0">
-                                <img src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
+                                <img loading="lazy" decoding="async" src={li.imageUrl} alt={li.title} className="w-full h-full object-cover" />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">

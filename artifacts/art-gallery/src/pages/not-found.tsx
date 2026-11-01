@@ -1,7 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
 export default function NotFound() {
+  usePageMeta({ title: `Page not found | ${SITE_NAME}`, noindex: true });
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
       <Card className="w-full max-w-md mx-4">
