@@ -23,6 +23,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Domain move: requests to an old address (REDIRECT_FROM_HOSTS, e.g. "art.saadgul.com") are sent
+// permanently (301) to the same page on SITE_URL, so links, bookmarks and Google rankings carry over.
+// Off until both settings are set. Search Console verification files stay reachable on the old host.
+const siteUrl = (process.env.SITE_URL ?? "").replace(/\/$/, "");
+const oldHosts = (process.env.REDIRECT_FROM_HOSTS ?? "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+if (siteUrl && oldHosts.length) {
+  const target = new URL(siteUrl).host.toLowerCase();
+  app.use((req, res, next) => {
+    const host = (req.headers.host ?? "").split(":")[0]!.toLowerCase();
+    if (host === target || !oldHosts.includes(host) || /^\/google[0-9a-f]+\.html$/.test(req.path)) return next();
+    res.redirect(req.method === "GET" || req.method === "HEAD" ? 301 : 308, siteUrl + req.originalUrl);
+  });
+}
+
 app.use(
   pinoHttp({
     logger,

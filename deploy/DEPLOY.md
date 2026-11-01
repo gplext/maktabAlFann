@@ -136,3 +136,20 @@ Never map the database port to `0.0.0.0` (Docker bypasses ufw).
 - **Code changes**: push to `main` → Coolify redeploys (enable Auto Deploy).
 - **Database changes**: Coolify **Backup Now** → tunnel → `psql ... -v ON_ERROR_STOP=1 -f migrations/<new>.sql`.
 - **Rollback**: Coolify → Deployments → redeploy the previous one. Data: restore the last backup.
+
+## Moving to a new domain (keeps SEO)
+
+The app has a built-in permanent (301) redirect from old addresses. It is off until both settings below are set.
+
+1. At the registrar: A records `@` and `www` → the server IP. Keep the old domain's DNS record too (for at least a year).
+2. Coolify → app → Domains: add `https://<new-domain>` and `https://www.<new-domain>` alongside the old one.
+   Set the www redirect to the version you prefer (e.g. non-www).
+3. Coolify → Environment Variables:
+   - `SITE_URL` = `https://<new-domain>` (canonical links, sitemap, share previews and structured data follow it)
+   - `REDIRECT_FROM_HOSTS` = `art.saadgul.com` (comma-separated old hosts)
+   Redeploy.
+4. Check: `https://art.saadgul.com/art/89` → 301 → `https://<new-domain>/art/89`; the new sitemap lists the new domain.
+5. Search Console: add the new domain (Domain property via DNS TXT), submit `/sitemap.xml`, then in the OLD
+   property use Settings → Change of address → new domain. Keep the old `google….html` file in place.
+6. Update the link on social profiles, WhatsApp business info and printed material.
+
