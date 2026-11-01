@@ -21,3 +21,7 @@ maktaba-alfann-db.sql
 # images uploaded on this machine (local storage)
 /uploads/
 *.dump
+
+# local reports and one-time database fixes (already applied)
+*.docx
+deploy/one-off/
