@@ -6,7 +6,7 @@ import { shopItemsTable } from "./shop_items";
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull(),
-  clerkUserId: text("clerk_user_id"),
+  userId: text("user_id"),
   status: text("status").notNull().default("pending_purchase"),
 
   /**
@@ -42,7 +42,7 @@ export const ordersTable = pgTable("orders", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
-  index("idx_orders_clerk_user_id").on(t.clerkUserId),
+  index("idx_orders_user_id").on(t.userId),
   index("idx_orders_status").on(t.status),
   index("orders_contact_phone_idx").on(t.contactPhone),
 ]);

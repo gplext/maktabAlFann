@@ -4,7 +4,7 @@ import { artistsTable } from "./artists";
 export const artistClaimsTable = pgTable("artist_claims", {
   id:             serial("id").primaryKey(),
   artistId:       integer("artist_id").notNull().references(() => artistsTable.id),
-  clerkUserId:    text("clerk_user_id").notNull(),
+  userId:    text("user_id").notNull(),
   submittedPhone: text("submitted_phone").notNull().default(""),
   phoneMatched:   boolean("phone_matched").notNull().default(false),
   status:         text("status").notNull().default("pending"),   // pending | auto_verified | approved | rejected

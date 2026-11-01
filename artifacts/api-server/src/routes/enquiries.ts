@@ -18,7 +18,7 @@ async function provisionUser(userId: string) {
   const existing = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.clerkUserId, userId))
+    .where(eq(usersTable.userId, userId))
     .limit(1);
 
   if (existing.length > 0) return existing[0];
@@ -27,7 +27,7 @@ async function provisionUser(userId: string) {
 
   const [created] = await db
     .insert(usersTable)
-    .values({ clerkUserId: userId, email, firstName, lastName, role: "collector" })
+    .values({ userId: userId, email, firstName, lastName, role: "collector" })
     .returning();
 
   return created;
@@ -45,7 +45,7 @@ router.post("/enquiries", requireCollectorAuth, async (req, res) => {
   const [enquiry] = await db
     .insert(enquiriesTable)
     .values({
-      clerkUserId: userId,
+      userId: userId,
       userEmail: user.email,
       userName: `${user.firstName} ${user.lastName}`.trim() || user.email,
       items,
@@ -86,7 +86,7 @@ router.get("/enquiries/me", requireCollectorAuth, async (req, res) => {
   const enquiries = await db
     .select()
     .from(enquiriesTable)
-    .where(eq(enquiriesTable.clerkUserId, userId))
+    .where(eq(enquiriesTable.userId, userId))
     .orderBy(enquiriesTable.createdAt);
   return res.json(enquiries.reverse());
 });

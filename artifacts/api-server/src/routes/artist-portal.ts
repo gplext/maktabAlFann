@@ -85,7 +85,7 @@ router.post("/artist-portal/verify-record", async (req, res) => {
     .from(artistsTable)
     .where(and(
       sql`lower(${artistsTable.name}) = lower(${trimName})`,
-      sql`${artistsTable.clerkUserId} IS NULL`,
+      sql`${artistsTable.userId} IS NULL`,
     ))
     .limit(1);
 
@@ -138,14 +138,14 @@ router.post("/artist-portal/check-name", async (req, res) => {
   const name = raw.trim();
   if (!name) return res.status(400).json({ error: "name is required" });
 
-  // Case-insensitive match against unclaimed (clerk_user_id IS NULL) records only
+  // Case-insensitive match against unclaimed (user_id IS NULL) records only
   const [match] = await db
     .select({ id: artistsTable.id, phone: artistsTable.phone })
     .from(artistsTable)
     .where(
       and(
         sql`lower(${artistsTable.name}) = lower(${name})`,
-        sql`${artistsTable.clerkUserId} IS NULL`,
+        sql`${artistsTable.userId} IS NULL`,
       ),
     )
     .limit(1);
@@ -158,7 +158,7 @@ router.post("/artist-portal/check-name", async (req, res) => {
       .where(
         and(
           sql`lower(${artistsTable.name}) = lower(${name})`,
-          sql`${artistsTable.clerkUserId} IS NOT NULL`,
+          sql`${artistsTable.userId} IS NOT NULL`,
         ),
       )
       .limit(1);
@@ -183,7 +183,7 @@ router.post("/artist-portal/claim-request", requireArtistAuth, async (req, res) 
   const [alreadyLinked] = await db
     .select({ id: artistsTable.id })
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (alreadyLinked)
     return res.status(409).json({ error: "You already have an artist profile linked to this account." });
@@ -194,15 +194,15 @@ router.post("/artist-portal/claim-request", requireArtistAuth, async (req, res) 
 
   const targetId = Number(existingArtistId);
 
-  // 409 if target record already has a clerk_user_id
+  // 409 if target record already has a user_id
   const [target] = await db
-    .select({ id: artistsTable.id, phone: artistsTable.phone, clerkUserId: artistsTable.clerkUserId })
+    .select({ id: artistsTable.id, phone: artistsTable.phone, userId: artistsTable.userId })
     .from(artistsTable)
     .where(eq(artistsTable.id, targetId))
     .limit(1);
   if (!target)
     return res.status(404).json({ error: "Artist record not found." });
-  if (target.clerkUserId)
+  if (target.userId)
     return res.status(409).json({ error: "This artist record has already been claimed." });
 
   // 409 if this user already has a pending claim for any artist
@@ -210,7 +210,7 @@ router.post("/artist-portal/claim-request", requireArtistAuth, async (req, res) 
     .select({ id: artistClaimsTable.id })
     .from(artistClaimsTable)
     .where(
-      sql`${artistClaimsTable.clerkUserId} = ${userId} AND ${artistClaimsTable.status} IN ('pending', 'auto_verified')`,
+      sql`${artistClaimsTable.userId} = ${userId} AND ${artistClaimsTable.status} IN ('pending', 'auto_verified')`,
     )
     .limit(1);
   if (pendingClaim)
@@ -229,7 +229,7 @@ router.post("/artist-portal/claim-request", requireArtistAuth, async (req, res) 
 
   const [target2] = await db.select({ name: artistsTable.name }).from(artistsTable).where(eq(artistsTable.id, targetId)).limit(1);
   const { score, flags } = computeRiskScore({
-    clerkAccountAgeHours: accountAgeHours,
+    accountAgeHours: accountAgeHours,
     emailVerified,
     emailDomain,
     name: target2?.name ?? "",
@@ -242,7 +242,7 @@ router.post("/artist-portal/claim-request", requireArtistAuth, async (req, res) 
     .insert(artistClaimsTable)
     .values({
       artistId: targetId,
-      clerkUserId: userId,
+      userId: userId,
       submittedPhone: phone,
       phoneMatched: matched,
       status,
@@ -267,7 +267,7 @@ router.get("/artist-portal/my-claim", requireArtistAuth, async (req, res) => {
     .select()
     .from(artistClaimsTable)
     .where(
-      sql`${artistClaimsTable.clerkUserId} = ${userId} AND ${artistClaimsTable.status} IN ('pending', 'auto_verified')`,
+      sql`${artistClaimsTable.userId} = ${userId} AND ${artistClaimsTable.status} IN ('pending', 'auto_verified')`,
     )
     .orderBy(desc(artistClaimsTable.createdAt))
     .limit(1);
@@ -280,7 +280,7 @@ router.get("/artist-portal/me", requireArtistAuth, async (req, res) => {
   const [artist] = await db
     .select()
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (!artist) return res.status(404).json({ error: "No artist profile linked" });
   return res.json(artist);
@@ -292,7 +292,7 @@ router.post("/artist-portal/register", requireArtistAuth, async (req, res) => {
   const existing = await db
     .select()
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (existing.length > 0)
     return res.status(409).json({ error: "Artist profile already exists" });
@@ -319,7 +319,7 @@ router.post("/artist-portal/register", requireArtistAuth, async (req, res) => {
     .map((a) => a.name.toLowerCase().trim());
 
   const { score, flags } = computeRiskScore({
-    clerkAccountAgeHours: accountAgeHours,
+    accountAgeHours: accountAgeHours,
     emailVerified,
     emailDomain,
     name: name ?? "",
@@ -334,7 +334,7 @@ router.post("/artist-portal/register", requireArtistAuth, async (req, res) => {
   const [artist] = await db
     .insert(artistsTable)
     .values({
-      clerkUserId: userId,
+      userId: userId,
       name: name ?? "",
       country: country ?? "Pakistan",
       birthYear: birthYear ? Number(birthYear) : new Date().getFullYear(),
@@ -368,7 +368,7 @@ router.patch("/artist-portal/profile", requireArtistAuth, async (req, res) => {
   const [existing] = await db
     .select()
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (!existing) return res.status(404).json({ error: "No artist profile" });
 
@@ -385,7 +385,7 @@ router.patch("/artist-portal/profile", requireArtistAuth, async (req, res) => {
   const [updated] = await db
     .update(artistsTable)
     .set(updates)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .returning();
   return res.json(updated);
 });
@@ -395,7 +395,7 @@ router.get("/artist-portal/artworks", requireArtistAuth, async (req, res) => {
   const artworks = await db
     .select()
     .from(artworksTable)
-    .where(eq(artworksTable.submittedByClerkId, userId));
+    .where(eq(artworksTable.submittedByUserId, userId));
 
   const artworkIds = artworks.map((a) => a.id);
   const tagLinks =
@@ -436,7 +436,7 @@ router.post("/artist-portal/artworks", requireArtistAuth, async (req, res) => {
   const [artist] = await db
     .select()
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (!artist) return res.status(403).json({ error: "Register as an artist first" });
   const notVerified = verificationBlock(artist.isVerified);
@@ -495,7 +495,7 @@ router.post("/artist-portal/artworks", requireArtistAuth, async (req, res) => {
       isFeatured: false,
       timeline: [],
       status: "pending",
-      submittedByClerkId: userId,
+      submittedByUserId: userId,
       tagline: tagline ?? null,
       widthCm: widthCm ?? null,
       heightCm: heightCm ?? null,
@@ -527,7 +527,7 @@ router.patch(
       .where(
         and(
           eq(artworksTable.id, id),
-          eq(artworksTable.submittedByClerkId, userId),
+          eq(artworksTable.submittedByUserId, userId),
         ),
       )
       .limit(1);
@@ -570,7 +570,7 @@ router.patch(
         const [artistRow] = await db
           .select({ defaultCommissionRate: artistsTable.defaultCommissionRate })
           .from(artistsTable)
-          .where(eq(artistsTable.clerkUserId, userId))
+          .where(eq(artistsTable.userId, userId))
           .limit(1);
         updates.displayPrice = deriveDisplayPrice(expPrice, artistRow?.defaultCommissionRate);
       } else {
@@ -607,7 +607,7 @@ router.delete(
       .where(
         and(
           eq(artworksTable.id, id),
-          eq(artworksTable.submittedByClerkId, userId),
+          eq(artworksTable.submittedByUserId, userId),
         ),
       )
       .limit(1);
@@ -623,7 +623,7 @@ router.get("/artist-portal/earnings", requireArtistAuth, async (req, res) => {
   const [artist] = await db
     .select({ id: artistsTable.id, defaultCommissionRate: artistsTable.defaultCommissionRate })
     .from(artistsTable)
-    .where(eq(artistsTable.clerkUserId, userId))
+    .where(eq(artistsTable.userId, userId))
     .limit(1);
   if (!artist) return res.status(404).json({ error: "No artist profile" });
 

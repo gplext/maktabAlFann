@@ -62,7 +62,7 @@ export const artworksTable = pgTable("artworks", {
   isFeatured: boolean("is_featured").notNull().default(false),
   timeline: jsonb("timeline").notNull().default([]),
   status: text("status").notNull().default("approved"),
-  submittedByClerkId: text("submitted_by_clerk_id"),
+  submittedByUserId: text("submitted_by_user_id"),
   specialtyType: text("specialty_type"),
   tagline: text("tagline"),
 

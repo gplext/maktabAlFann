@@ -488,7 +488,7 @@ export type CreateOrderItem = z.infer<typeof CreateOrderItem>;
 
 export const CreateOrderBody = z.object({
   sessionId: z.string().min(1),
-  clerkUserId: z.string().nullish(),
+  userId: z.string().nullish(),
   contactName: z.string().max(200).nullish(),
   contactPhone: z.string().max(50).nullish(),
   contactEmail: z.string().max(200).nullish(),
@@ -520,7 +520,7 @@ export type OrderLineItemResponse = z.infer<typeof OrderLineItemResponse>;
 export const OrderResponse = z.object({
   id: z.number().int(),
   sessionId: z.string(),
-  clerkUserId: z.string().nullish(),
+  userId: z.string().nullish(),
   status: z.string(),
   totalAmount: Money,
   currency: CurrencyCode,
@@ -536,10 +536,10 @@ export type OrderResponse = z.infer<typeof OrderResponse>;
 export const ListOrdersQueryParams = z
   .object({
     sessionId: OptionalText,
-    clerkUserId: OptionalText,
+    userId: OptionalText,
   })
-  .refine((v) => v.sessionId != null || v.clerkUserId != null, {
-    message: "sessionId or clerkUserId is required",
+  .refine((v) => v.sessionId != null || v.userId != null, {
+    message: "sessionId or userId is required",
   });
 export type ListOrdersQueryParams = z.infer<typeof ListOrdersQueryParams>;
 

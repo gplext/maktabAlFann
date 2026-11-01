@@ -36,7 +36,7 @@ async function requireGallery(req: any, res: any, next: any) {
   const [gallery] = await db
     .select()
     .from(galleriesTable)
-    .where(eq(galleriesTable.clerkUserId, userId))
+    .where(eq(galleriesTable.userId, userId))
     .limit(1);
   if (!gallery) return res.status(403).json({ error: "Gallery profile not found" });
   // Open access: pending/rejected galleries can still use the portal (admin review is informational).
@@ -49,7 +49,7 @@ router.get("/gallery-portal/me", requireGalleryAuth, async (req: any, res) => {
   const [gallery] = await db
     .select()
     .from(galleriesTable)
-    .where(eq(galleriesTable.clerkUserId, req.userId))
+    .where(eq(galleriesTable.userId, req.userId))
     .limit(1);
   if (!gallery) return res.status(404).json({ error: "Not found" });
   return res.json(gallery);
@@ -61,7 +61,7 @@ router.post("/gallery-portal/register", requireGalleryAuth, async (req: any, res
   const [existing] = await db
     .select({ id: galleriesTable.id })
     .from(galleriesTable)
-    .where(eq(galleriesTable.clerkUserId, req.userId))
+    .where(eq(galleriesTable.userId, req.userId))
     .limit(1);
   if (existing) return res.status(409).json({ error: "Gallery profile already exists" });
 
@@ -71,7 +71,7 @@ router.post("/gallery-portal/register", requireGalleryAuth, async (req: any, res
   const [gallery] = await db
     .insert(galleriesTable)
     .values({
-      clerkUserId: req.userId,
+      userId: req.userId,
       name: name.trim(),
       description: description?.trim() ?? "",
       email: email?.trim() ?? "",

@@ -1,6 +1,6 @@
 /**
  * Pure risk-scoring function for artist registrations and claim requests.
- * All async lookups (Clerk, DB) are done by the caller; this function is
+ * All async lookups (accounts, DB) are done by the caller; this function is
  * deterministic and unit-testable with no side effects.
  */
 
@@ -26,9 +26,9 @@ const DISPOSABLE_DOMAINS = [
 ];
 
 export type RiskInput = {
-  /** Hours since the Clerk account was created */
-  clerkAccountAgeHours: number;
-  /** Whether the primary email address is verified in Clerk */
+  /** Hours since the account was created */
+  accountAgeHours: number;
+  /** Whether the primary email address is verified */
   emailVerified: boolean;
   /** Domain part of the primary email (e.g. "gmail.com") */
   emailDomain: string;
@@ -70,7 +70,7 @@ export function computeRiskScore(input: RiskInput): RiskResult {
   const flags: string[] = [];
 
   // ── Account age ────────────────────────────────────────────────────────────
-  if (input.clerkAccountAgeHours < 24) {
+  if (input.accountAgeHours < 24) {
     score += 20;
     flags.push("new_account");
   }

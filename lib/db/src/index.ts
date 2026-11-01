@@ -10,7 +10,9 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Every session runs in UTC so "timestamp" columns filled by the database (defaultNow) and
+// by the app (new Date()) use the same clock, whatever timezone the server is set to.
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL, options: "-c timezone=UTC" });
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

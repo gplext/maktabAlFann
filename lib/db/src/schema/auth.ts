@@ -7,7 +7,7 @@ import { pgTable, text, serial, integer, timestamp, json, index } from "drizzle-
  * can look a user up by email/phone without storing it in clear.
  *
  * `id` is a string ("u_<uuid>") on purpose: it goes into the existing
- * `clerk_user_id`-style columns, so all current ownership checks keep working.
+ * `user_id`-style columns, so all current ownership checks keep working.
  */
 export const AUTH_ROLES = [
   "buyer", "artist", "gallery_owner", "artwork_owner",

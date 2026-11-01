@@ -88,7 +88,7 @@ export default function Cart() {
     // in the cart to prevent cross-account order leakage on shared browsers.
     if (!user?.id) { setOrders([]); return; }
     setOrdersLoading(true);
-    const params = new URLSearchParams({ clerkUserId: user.id });
+    const params = new URLSearchParams({ userId: user.id });
     if (sessionId) params.set("sessionId", sessionId); // claim pre-signup session orders
     const res = await fetch(`/api/orders?${params}`);
     if (res.ok) setOrders(await res.json());

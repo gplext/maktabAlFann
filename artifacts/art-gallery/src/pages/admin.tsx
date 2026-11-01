@@ -15,7 +15,7 @@ import AdminLogin from "@/pages/admin-login";
 type EnquiryItem = { artworkId: number; title: string; artistName: string; imageUrl?: string };
 
 type Enquiry = {
-  id: number; clerkUserId: string; userEmail: string; userName: string;
+  id: number; userId: string; userEmail: string; userName: string;
   items: EnquiryItem[]; message: string | null;
   status: "pending" | "contacted" | "completed"; createdAt: string;
 };
@@ -35,7 +35,7 @@ type AdminArtist = {
   id: number; name: string; country: string; birthYear: number; gender: string;
   style: string; photoUrl: string; shortBio: string; biography: string; influences: string;
   awards: string; exhibitions: string; contactEmail: string; websiteUrl: string;
-  isVerified: string; portfolioDisabled: boolean; clerkUserId: string | null;
+  isVerified: string; portfolioDisabled: boolean; userId: string | null;
   defaultCommissionRate: number;
   riskScore: number; riskFlags: string[];
   phone: string; phone2: string;
@@ -139,7 +139,7 @@ export default function Admin() {
 
   // ── Orders tab ─────────────────────────────────────────────────────────────
   type AdminOrderLineItem = { id: number; artworkId: number | null; shopItemId: number | null; title: string; imageUrl: string; unitPrice: number; quantity: number };
-  type AdminOrder = { id: number; sessionId: string; clerkUserId: string | null; status: string; totalAmount: number; contactName: string | null; contactPhone: string | null; contactEmail: string | null; createdAt: string; updatedAt: string; items: AdminOrderLineItem[];
+  type AdminOrder = { id: number; sessionId: string; userId: string | null; status: string; totalAmount: number; contactName: string | null; contactPhone: string | null; contactEmail: string | null; createdAt: string; updatedAt: string; items: AdminOrderLineItem[];
     region?: string; channel?: string; paymentMethod?: string; paymentStatus?: string; whatsappRef?: string | null;
     shippingAddress?: string | null; shippingCity?: string | null; shippingCountry?: string | null };
   const [adminOrders, setAdminOrders] = useState<AdminOrder[]>([]);
@@ -1973,7 +1973,14 @@ export default function Admin() {
                     refunded:         { label: "Refunded",        cls: "text-foreground/50 bg-foreground/5 border-foreground/10" },
                   };
                   const meta = statusMeta[o.status] ?? statusMeta["pending_purchase"]!;
-                  const nextStatuses = ["pending_purchase", "paid", "shipped", "delivered"].filter((s) => s !== o.status);
+                  // Same steps as the staff console; the server refuses skipped or reversed steps.
+                  const ADMIN_NEXT: Record<string, string[]> = {
+                    pending_purchase: o.channel === "whatsapp" ? ["cancelled"] : ["confirmed", "cancelled"],
+                    confirmed: ["in_preparation", "shipped", "cancelled"], in_preparation: ["shipped", "cancelled"],
+                    paid: ["in_preparation", "shipped", "delivered", "cancelled"], shipped: ["delivered"],
+                    delivered: o.paymentStatus === "paid" ? ["completed", "refunded"] : [], completed: ["refunded"],
+                  };
+                  const nextStatuses = (ADMIN_NEXT[o.status] ?? []).filter((s) => !(s === "cancelled" && o.paymentStatus === "paid") && !(s === "refunded" && o.paymentStatus !== "paid"));
                   return (
                     <div key={o.id} className="bg-card border border-border p-6">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-border">
@@ -1998,7 +2005,7 @@ export default function Admin() {
                           </div>
                           <div className="flex gap-4 mt-1 text-xs text-foreground/40">
                             <span>Placed {new Date(o.createdAt).toLocaleDateString("en-AE", { year: "numeric", month: "short", day: "numeric" })}</span>
-                            {o.clerkUserId && <span>User: {o.clerkUserId.slice(0, 12)}…</span>}
+                            {o.userId && <span>User: {o.userId.slice(0, 12)}…</span>}
                           </div>
                           {(o.contactName || o.contactPhone || o.contactEmail) && (
                             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-foreground/60">
@@ -2047,10 +2054,11 @@ export default function Admin() {
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ status: s }),
                                 });
+                                const data = await res.json().catch(() => ({}));
                                 if (res.ok) {
-                                  setAdminOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, status: s } : x));
+                                  setAdminOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, ...data, items: x.items } : x));
                                   toast({ title: `Order #${o.id + 10000} marked as ${sm.label}.` });
-                                } else { toast({ title: "Error", variant: "destructive" }); }
+                                } else { toast({ title: data.error ?? "Error", variant: "destructive" }); }
                                 setOrderStatusSaving(null);
                               }}
                               className={`px-3 py-1.5 text-xs uppercase tracking-widest border transition-colors hover:opacity-80 disabled:opacity-40 ${sm.cls}`}>
@@ -2058,6 +2066,28 @@ export default function Admin() {
                             </button>
                           );
                         })}
+                        {o.channel === "whatsapp" && o.status === "pending_purchase" && (
+                          <a href="/staff" className="text-xs text-foreground/60 underline hover:text-primary">Confirm in Staff console (needs the delivery address)</a>
+                        )}
+                        {o.paymentMethod === "cod" && o.status === "delivered" && o.paymentStatus !== "paid" && (
+                          <button disabled={orderStatusSaving === o.id}
+                            onClick={async () => {
+                              setOrderStatusSaving(o.id);
+                              const res = await fetch(`/api/staff/orders/${o.id}/payment`, {
+                                method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ method: "cod" }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (res.ok) {
+                                setAdminOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, ...data, items: x.items } : x));
+                                toast({ title: `Cash recorded for order #${o.id + 10000}.` });
+                              } else { toast({ title: data.error ?? "Error", variant: "destructive" }); }
+                              setOrderStatusSaving(null);
+                            }}
+                            className="px-3 py-1.5 text-xs uppercase tracking-widest border text-emerald-700 bg-emerald-50 border-emerald-200 hover:opacity-80 disabled:opacity-40">
+                            Cash received
+                          </button>
+                        )}
                         <button
                           disabled={orderDeleting === o.id || orderStatusSaving === o.id}
                           onClick={async () => {

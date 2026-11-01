@@ -71,12 +71,11 @@ router.post("/orders", orderLimit, async (req, res) => {
 
   const { sessionId, contactName, contactPhone, contactEmail, items } = parsed.data;
 
-  // Identity comes from the Clerk session, never from the request body — an
+  // Identity comes from the signed-in session, never from the request body — an
   // attacker must not be able to file an order against someone else's account.
   // Guests order anonymously; GET /orders links the order to their account the
   // first time they sign in from the same browser session.
-  const userId = getUserId(req);
-  const clerkUserId = userId ?? null;
+  const userId = getUserId(req) ?? null;
 
   // ── Checkout gate: region, path and payment method ──────────────────────
   const region = parsed.data.region ?? "local";
@@ -250,7 +249,7 @@ router.post("/orders", orderLimit, async (req, res) => {
       .insert(ordersTable)
       .values({
         sessionId,
-        clerkUserId,
+        userId,
         totalAmount,
         currency: BASE_CURRENCY,
         status: "pending_purchase",
@@ -311,45 +310,44 @@ router.post("/orders", orderLimit, async (req, res) => {
 router.get("/orders", async (req, res) => {
   const parsed = ListOrdersQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    return res.status(400).json({ error: "sessionId or clerkUserId required" });
+    return res.status(400).json({ error: "sessionId or userId required" });
   }
   const { sessionId } = parsed.data;
 
   // A caller may only read their OWN orders. The signed-in user's id comes from
-  // the Clerk session; a clerkUserId in the query string is honoured only when
+  // the signed-in session; a userId in the query string is honoured only when
   // it matches, so nobody can list another collector's order history.
-  const userId = getUserId(req);
-  const clerkUserId = userId ?? null;
+  const userId = getUserId(req) ?? null;
 
-  if (parsed.data.clerkUserId && parsed.data.clerkUserId !== clerkUserId) {
+  if (parsed.data.userId && parsed.data.userId !== userId) {
     return res.status(403).json({ error: "Forbidden" });
   }
-  if (!clerkUserId && !sessionId) {
-    return res.status(400).json({ error: "sessionId or clerkUserId required" });
+  if (!userId && !sessionId) {
+    return res.status(400).json({ error: "sessionId or userId required" });
   }
 
   // When a signed-in user fetches their orders, claim any anonymous orders from
   // this browser session. This is how a guest checkout becomes part of their
   // account once they sign in.
-  if (clerkUserId && sessionId) {
+  if (userId && sessionId) {
     await db
       .update(ordersTable)
-      .set({ clerkUserId })
-      .where(and(eq(ordersTable.sessionId, sessionId), isNull(ordersTable.clerkUserId)));
+      .set({ userId })
+      .where(and(eq(ordersTable.sessionId, sessionId), isNull(ordersTable.userId)));
   }
 
-  const orders = clerkUserId
+  const orders = userId
     ? await db
         .select()
         .from(ordersTable)
-        .where(eq(ordersTable.clerkUserId, clerkUserId))
+        .where(eq(ordersTable.userId, userId))
         .orderBy(desc(ordersTable.createdAt))
     // Guest: only unclaimed orders, so orders already claimed by an account
     // never leak through on a shared browser.
     : await db
         .select()
         .from(ordersTable)
-        .where(and(eq(ordersTable.sessionId, sessionId!), isNull(ordersTable.clerkUserId)))
+        .where(and(eq(ordersTable.sessionId, sessionId!), isNull(ordersTable.userId)))
         .orderBy(desc(ordersTable.createdAt));
 
   return res.json(await attachLineItems(orders));
@@ -361,7 +359,7 @@ async function ownOrder(req: any, id: number) {
   const userId = getUserId(req);
   if (!userId || Number.isNaN(id)) return null;
   const [order] = await db.select().from(ordersTable)
-    .where(and(eq(ordersTable.id, id), eq(ordersTable.clerkUserId, userId))).limit(1);
+    .where(and(eq(ordersTable.id, id), eq(ordersTable.userId, userId))).limit(1);
   return order ?? null;
 }
 
@@ -388,7 +386,7 @@ router.post("/orders/:id/confirm-delivery", async (req, res) => {
   const order = await ownOrder(req, Number(req.params.id));
   if (!order) return res.status(404).json({ error: "Order not found." });
   if (order.status !== "shipped") return res.status(409).json({ error: "This order hasn't been shipped yet." });
-  return res.json(await applyTransition(order, "delivered", `buyer:${order.clerkUserId}`));
+  return res.json(await applyTransition(order, "delivered", `buyer:${order.userId}`));
 });
 
 /* ── Staff console: orders ──────────────────────────────────────────────── */
@@ -413,7 +411,23 @@ router.post("/staff/orders/:id/status", requirePermission("orders.manage"), asyn
   if (to === "refunded" && !staff.permissions.has("payments.confirm")) return res.status(403).json({ error: "You can't refund orders." });
   const problem = transitionProblem(order, to);
   if (problem) return res.status(409).json({ error: problem });
-  return res.json(await applyTransition(order, to as OrderStatus, staff.id));
+  const cashCollected = req.body?.cashCollected === true;
+  if (cashCollected && !(to === "delivered" && order.paymentMethod === "cod" && order.paymentStatus !== "paid")) {
+    return res.status(400).json({ error: "Cash can only be recorded when a cash-on-delivery order is delivered." });
+  }
+  if (cashCollected && !staff.permissions.has("payments.confirm")) return res.status(403).json({ error: "You can't record payments." });
+  const updated = await applyTransition(order, to as OrderStatus, staff.id);
+  if (!cashCollected) return res.json(updated);
+  // Delivered and the courier/rider handed over the cash: record the payment in the same step.
+  const now = new Date();
+  await db.insert(paymentsTable).values({
+    orderId: order.id, provider: "cod", amount: order.totalAmount, currency: order.currency,
+    status: "paid", recordedBy: staff.id, paidAt: now,
+  });
+  const [paid] = await db.update(ordersTable).set({ paymentStatus: "paid", paidAt: now, updatedAt: now })
+    .where(eq(ordersTable.id, order.id)).returning();
+  await recordCommissions(order.id);
+  return res.json(paid);
 });
 
 /** Staff records a cash-on-delivery or bank-transfer payment. */
@@ -440,17 +454,25 @@ router.post("/staff/orders/:id/payment", requirePermission("payments.confirm"), 
 router.post("/staff/orders/:id/whatsapp-confirm", requirePermission("orders.manage"), async (req, res) => {
   const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, Number(req.params.id))).limit(1);
   if (!order || order.channel !== "whatsapp") return res.status(404).json({ error: "WhatsApp order not found." });
-  const { shippingAddress, shippingCity, contactEmail } = req.body ?? {};
-  const problem = transitionProblem(order, "confirmed");
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const shippingAddress = str(req.body?.shippingAddress, 500);
+  const shippingCity = str(req.body?.shippingCity, 100);
+  const shippingCountry = str(req.body?.shippingCountry, 100);
+  const contactEmail = str(req.body?.contactEmail, 200);
+  // The delivery address is agreed in the chat; it must be on the order before anything is shipped.
+  if (!shippingAddress || !(shippingCity || order.shippingCity)) {
+    return res.status(400).json({ error: "Enter the delivery address and city agreed in the chat." });
+  }
+  const problem = transitionProblem({ ...order, shippingAddress }, "confirmed");
   if (problem) return res.status(409).json({ error: problem });
-  // Optional details agreed in the chat. Only update when some were sent — an empty update throws ("No values to set").
-  const details = {
-    ...(typeof shippingAddress === "string" && shippingAddress.trim() ? { shippingAddress: shippingAddress.slice(0, 500) } : {}),
-    ...(typeof shippingCity === "string" && shippingCity.trim() ? { shippingCity: shippingCity.slice(0, 100) } : {}),
-    ...(typeof contactEmail === "string" && contactEmail.trim() ? { contactEmail: contactEmail.slice(0, 200) } : {}),
-  };
-  if (Object.keys(details).length) await db.update(ordersTable).set(details).where(eq(ordersTable.id, order.id));
-  return res.json(await applyTransition(order, "confirmed", ((req as any).staff as StaffContext).id));
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return res.status(400).json({ error: "That email address doesn't look right." });
+  await db.update(ordersTable).set({
+    shippingAddress,
+    ...(shippingCity ? { shippingCity } : {}),
+    ...(shippingCountry ? { shippingCountry } : {}),
+    ...(contactEmail ? { contactEmail } : {}),
+  }).where(eq(ordersTable.id, order.id));
+  return res.json(await applyTransition({ ...order, shippingAddress }, "confirmed", ((req as any).staff as StaffContext).id));
 });
 
 /* ── Admin ──────────────────────────────────────────────────────────────── */
@@ -470,6 +492,10 @@ router.patch("/admin/orders/:id/status", requireAdminSession, async (req, res) =
   const [current] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
   if (!current) return res.status(404).json({ error: "Not found" });
   const to = parsed.data.status;
+  // Same rules as the staff console: no skipping or reversing steps (that left orders
+  // shipped without ever being confirmed). "paid" is the old console's status.
+  const problem = to === "paid" ? null : transitionProblem(current, to);
+  if (problem) return res.status(409).json({ error: problem });
   if (to === "shipped" && current.region === "international" && current.paymentStatus !== "paid") {
     return res.status(409).json({ error: "International orders must be paid before shipping." });
   }

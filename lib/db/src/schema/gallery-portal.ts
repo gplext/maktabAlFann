@@ -4,7 +4,7 @@ import { artworksTable } from "./artworks";
 
 export const galleriesTable = pgTable("galleries", {
   id:          serial("id").primaryKey(),
-  clerkUserId: text("clerk_user_id").notNull().unique(),
+  userId: text("user_id").notNull().unique(),
   name:        text("name").notNull(),
   description: text("description").notNull().default(""),
   email:       text("email").notNull().default(""),

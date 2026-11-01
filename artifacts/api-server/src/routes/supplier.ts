@@ -20,11 +20,11 @@ const router: IRouter = Router();
  * Google Maps link — then overwrite them with POST.
  *
  * Ownership is either of:
- *   - the artwork was submitted by this Clerk user (`submitted_by_clerk_id`), or
- *   - the artwork belongs to the artist record this Clerk user is linked to.
+ *   - the artwork was submitted by this signed-in user (`submitted_by_user_id`), or
+ *   - the artwork belongs to the artist record this signed-in user is linked to.
  *
  * The second case matters for work an admin or gallery entered on an artist's
- * behalf, where `submitted_by_clerk_id` is null but the artist still owns it.
+ * behalf, where `submitted_by_user_id` is null but the artist still owns it.
  */
 async function findOwnedArtwork(userId: string, artworkId: number) {
   if (!Number.isInteger(artworkId) || artworkId <= 0) return null;
@@ -37,8 +37,8 @@ async function findOwnedArtwork(userId: string, artworkId: number) {
       and(
         eq(artworksTable.id, artworkId),
         or(
-          eq(artworksTable.submittedByClerkId, userId),
-          eq(artistsTable.clerkUserId, userId),
+          eq(artworksTable.submittedByUserId, userId),
+          eq(artistsTable.userId, userId),
         ),
       ),
     )

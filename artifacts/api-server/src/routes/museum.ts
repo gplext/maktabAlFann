@@ -49,7 +49,7 @@ async function ownedArtworks(userId: string) {
     .innerJoin(artworksTable, eq(orderLineItemsTable.artworkId, artworksTable.id))
     .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
     .where(and(
-      eq(ordersTable.clerkUserId, userId),
+      eq(ordersTable.userId, userId),
       isNotNull(orderLineItemsTable.artworkId),
       notInArray(ordersTable.status, ["cancelled", "refunded"]),
       or(eq(ordersTable.paymentStatus, "paid"), inArray(ordersTable.status, ["paid", "delivered", "completed"])),

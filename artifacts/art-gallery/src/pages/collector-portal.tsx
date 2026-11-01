@@ -338,7 +338,7 @@ export default function CollectorPortal() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ clerkUserId: user.id });
+      const params = new URLSearchParams({ userId: user.id });
       if (sessionId) params.set("sessionId", sessionId);
       const res = await fetch(`/api/orders?${params}`);
       if (res.ok) setOrders(await res.json());

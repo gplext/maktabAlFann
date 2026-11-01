@@ -27,8 +27,8 @@ const actorOf = (req: any): string => req.session?.userId ?? "env-admin";
 
 async function linkedAccount(kind: "artist" | "gallery", id: number): Promise<Acct | null> {
   const owner = kind === "artist"
-    ? (await db.select({ uid: artistsTable.clerkUserId }).from(artistsTable).where(eq(artistsTable.id, id)).limit(1))[0]?.uid
-    : (await db.select({ uid: galleriesTable.clerkUserId }).from(galleriesTable).where(eq(galleriesTable.id, id)).limit(1))[0]?.uid;
+    ? (await db.select({ uid: artistsTable.userId }).from(artistsTable).where(eq(artistsTable.id, id)).limit(1))[0]?.uid
+    : (await db.select({ uid: galleriesTable.userId }).from(galleriesTable).where(eq(galleriesTable.id, id)).limit(1))[0]?.uid;
   if (!owner) return null;
   const [a] = await db.select().from(authAccountsTable).where(eq(authAccountsTable.id, owner)).limit(1);
   return a ?? null;
@@ -38,10 +38,10 @@ async function linkedAccount(kind: "artist" | "gallery", id: number): Promise<Ac
 async function recordInfo(kind: "artist" | "gallery", id: number) {
   if (kind === "artist") {
     const [a] = await db.select().from(artistsTable).where(eq(artistsTable.id, id)).limit(1);
-    return a ? { name: a.name, linkedId: a.clerkUserId, contacts: [a.contactEmail, a.phone, a.phone2] } : null;
+    return a ? { name: a.name, linkedId: a.userId, contacts: [a.contactEmail, a.phone, a.phone2] } : null;
   }
   const [g] = await db.select().from(galleriesTable).where(eq(galleriesTable.id, id)).limit(1);
-  return g ? { name: g.name, linkedId: g.clerkUserId, contacts: [g.email, g.phone] } : null;
+  return g ? { name: g.name, linkedId: g.userId, contacts: [g.email, g.phone] } : null;
 }
 
 /** First account whose sign-in email/phone equals one of the record's contact details. */
@@ -61,10 +61,10 @@ async function suggestFor(contacts: (string | null)[], role: string): Promise<Ac
 /** Who already uses this account (an account can belong to one artist and one gallery). */
 async function linkedElsewhere(kind: "artist" | "gallery", accountId: string, exceptId: number) {
   if (kind === "artist") {
-    const [a] = await db.select({ name: artistsTable.name }).from(artistsTable).where(and(eq(artistsTable.clerkUserId, accountId), ne(artistsTable.id, exceptId))).limit(1);
+    const [a] = await db.select({ name: artistsTable.name }).from(artistsTable).where(and(eq(artistsTable.userId, accountId), ne(artistsTable.id, exceptId))).limit(1);
     return a?.name ?? null;
   }
-  const [g] = await db.select({ name: galleriesTable.name }).from(galleriesTable).where(and(eq(galleriesTable.clerkUserId, accountId), ne(galleriesTable.id, exceptId))).limit(1);
+  const [g] = await db.select({ name: galleriesTable.name }).from(galleriesTable).where(and(eq(galleriesTable.userId, accountId), ne(galleriesTable.id, exceptId))).limit(1);
   return g?.name ?? null;
 }
 
@@ -80,8 +80,8 @@ async function accountInfo(kind: "artist" | "gallery", id: number) {
     // Contact email/phone matches an account: link it right away, no button needed.
     const match = await suggestFor(rec.contacts, ROLE_FOR[kind]);
     if (match && !STAFF_LEVELS.includes(match.role) && !(await linkedElsewhere(kind, match.id, id))) {
-      if (kind === "artist") await db.update(artistsTable).set({ clerkUserId: match.id }).where(eq(artistsTable.id, id));
-      else await db.update(galleriesTable).set({ clerkUserId: match.id }).where(eq(galleriesTable.id, id));
+      if (kind === "artist") await db.update(artistsTable).set({ userId: match.id }).where(eq(artistsTable.id, id));
+      else await db.update(galleriesTable).set({ userId: match.id }).where(eq(galleriesTable.id, id));
       return { account: accountView(match), staleLink: false, suggestion: null, autoLinked: true };
     }
   }
@@ -120,8 +120,8 @@ async function linkHandler(kind: "artist" | "gallery", req: any, res: any) {
   if (STAFF_LEVELS.includes(account.role)) return res.status(400).json({ error: "That is a staff account — use the artist's or gallery's own login." });
   const other = await linkedElsewhere(kind, account.id, id);
   if (other) return res.status(409).json({ error: `That account is already linked to ${kind === "artist" ? "artist" : "gallery"} “${other}”.` });
-  if (kind === "artist") await db.update(artistsTable).set({ clerkUserId: account.id }).where(eq(artistsTable.id, id));
-  else await db.update(galleriesTable).set({ clerkUserId: account.id }).where(eq(galleriesTable.id, id));
+  if (kind === "artist") await db.update(artistsTable).set({ userId: account.id }).where(eq(artistsTable.id, id));
+  else await db.update(galleriesTable).set({ userId: account.id }).where(eq(galleriesTable.id, id));
   await db.insert(authEventsTable).values({ accountId: account.id, event: `linked_to_${kind}_by:${actorOf(req)}`, ip: req.ip ?? null });
   return res.json({ ok: true, account: accountView(account), created: Boolean(req.body?.create) });
 }
@@ -133,9 +133,9 @@ async function unlinkHandler(kind: "artist" | "gallery", req: any, res: any) {
   const id = Number(req.params.id);
   const rec = await recordInfo(kind, id);
   if (!rec) return res.status(404).json({ error: "Not found" });
-  if (kind === "artist") await db.update(artistsTable).set({ clerkUserId: null }).where(eq(artistsTable.id, id));
+  if (kind === "artist") await db.update(artistsTable).set({ userId: null }).where(eq(artistsTable.id, id));
   // A gallery must always hold a value here (unique, not null): park it on a placeholder.
-  else await db.update(galleriesTable).set({ clerkUserId: `unlinked_${id}` }).where(eq(galleriesTable.id, id));
+  else await db.update(galleriesTable).set({ userId: `unlinked_${id}` }).where(eq(galleriesTable.id, id));
   if (rec.linkedId) await db.insert(authEventsTable).values({ accountId: rec.linkedId, event: `unlinked_from_${kind}_by:${actorOf(req)}`, ip: req.ip ?? null });
   return res.json({ ok: true });
 }
@@ -168,17 +168,17 @@ export async function autoLinkAccounts() {
   const result = { artists: 0, galleries: 0, unmatchedArtists: 0, unmatchedGalleries: 0 };
   const accountIds = new Set((await db.select({ id: authAccountsTable.id }).from(authAccountsTable)).map((a) => a.id));
   for (const a of await db.select().from(artistsTable)) {
-    if (a.clerkUserId && accountIds.has(a.clerkUserId)) continue;
+    if (a.userId && accountIds.has(a.userId)) continue;
     const s = await suggestFor([a.contactEmail, a.phone, a.phone2], ROLE_FOR.artist);
     if (s && !STAFF_LEVELS.includes(s.role) && !(await linkedElsewhere("artist", s.id, a.id))) {
-      await db.update(artistsTable).set({ clerkUserId: s.id }).where(eq(artistsTable.id, a.id)); result.artists++;
+      await db.update(artistsTable).set({ userId: s.id }).where(eq(artistsTable.id, a.id)); result.artists++;
     } else result.unmatchedArtists++;
   }
   for (const g of await db.select().from(galleriesTable)) {
-    if (accountIds.has(g.clerkUserId)) continue;
+    if (accountIds.has(g.userId)) continue;
     const s = await suggestFor([g.email, g.phone], ROLE_FOR.gallery);
     if (s && !STAFF_LEVELS.includes(s.role) && !(await linkedElsewhere("gallery", s.id, g.id))) {
-      await db.update(galleriesTable).set({ clerkUserId: s.id }).where(eq(galleriesTable.id, g.id)); result.galleries++;
+      await db.update(galleriesTable).set({ userId: s.id }).where(eq(galleriesTable.id, g.id)); result.galleries++;
     } else result.unmatchedGalleries++;
   }
   return result;
@@ -298,18 +298,18 @@ async function eraseAccount(accountId: string | null | undefined): Promise<Erase
   if (!a) return { erased: false, reason: "No sign-in account was linked." };
   const login = decrypt(a.emailEnc) ?? decrypt(a.phoneEnc);
   if (STAFF_LEVELS.includes(a.role)) return { erased: false, login, reason: "It is a staff account, so it was kept." };
-  const [art] = await db.select({ name: artistsTable.name }).from(artistsTable).where(eq(artistsTable.clerkUserId, a.id)).limit(1);
-  const [gal] = await db.select({ name: galleriesTable.name }).from(galleriesTable).where(eq(galleriesTable.clerkUserId, a.id)).limit(1);
+  const [art] = await db.select({ name: artistsTable.name }).from(artistsTable).where(eq(artistsTable.userId, a.id)).limit(1);
+  const [gal] = await db.select({ name: galleriesTable.name }).from(galleriesTable).where(eq(galleriesTable.userId, a.id)).limit(1);
   if (art || gal) return { erased: false, login, reason: `It still owns ${art ? `artist “${art.name}”` : `gallery “${gal!.name}”`}, so it was kept.` };
-  const [{ n: orders }] = await db.select({ n: sql<number>`count(*)::int` }).from(ordersTable).where(eq(ordersTable.clerkUserId, a.id));
+  const [{ n: orders }] = await db.select({ n: sql<number>`count(*)::int` }).from(ordersTable).where(eq(ordersTable.userId, a.id));
   if (orders) return { erased: false, login, reason: `It has ${orders} order(s) as a buyer, so it was kept for the order records.` };
 
   const email = decrypt(a.emailEnc), phone = decrypt(a.phoneEnc);
   await revokeSessions(a.id);
   await db.transaction(async (tx) => {
-    await tx.delete(enquiriesTable).where(eq(enquiriesTable.clerkUserId, a.id));
-    await tx.delete(usersTable).where(eq(usersTable.clerkUserId, a.id));
-    await tx.delete(artistClaimsTable).where(eq(artistClaimsTable.clerkUserId, a.id));
+    await tx.delete(enquiriesTable).where(eq(enquiriesTable.userId, a.id));
+    await tx.delete(usersTable).where(eq(usersTable.userId, a.id));
+    await tx.delete(artistClaimsTable).where(eq(artistClaimsTable.userId, a.id));
     const mine = [email ? eq(artistMergeRequestsTable.submittedEmail, email) : null, phone ? eq(artistMergeRequestsTable.submittedPhone, phone) : null].filter(Boolean);
     if (mine.length) await tx.delete(artistMergeRequestsTable).where(or(...(mine as any[])));
     // Codes, staff titles and saved museum layouts go with it (ON DELETE CASCADE).
@@ -355,10 +355,10 @@ router.delete("/admin/artists/:id", requireAdminSession, async (req, res) => {
     await tx.delete(portfolioTable).where(eq(portfolioTable.artistId, id));
     await tx.delete(artistsTable).where(eq(artistsTable.id, id));
   });
-  const account = await eraseAccount(artist.clerkUserId);
+  const account = await eraseAccount(artist.userId);
   for (const aid of ids) await closeEntityTasks("artwork", aid, "artwork deleted with its artist");
   await closeEntityTasks("artist", id, "artist deleted");
-  await db.insert(authEventsTable).values({ accountId: artist.clerkUserId, event: `artist_deleted_by:${actorOf(req)}`, ip: req.ip ?? null });
+  await db.insert(authEventsTable).values({ accountId: artist.userId, event: `artist_deleted_by:${actorOf(req)}`, ip: req.ip ?? null });
   return res.json({ ok: true, deletedArtworks: ids.length, account });
 });
 
@@ -371,7 +371,7 @@ router.get("/admin/artist-claims", requirePermission("artists.approve"), async (
     .select({
       id:             artistClaimsTable.id,
       artistId:       artistClaimsTable.artistId,
-      clerkUserId:    artistClaimsTable.clerkUserId,
+      userId:    artistClaimsTable.userId,
       submittedPhone: artistClaimsTable.submittedPhone,
       phoneMatched:   artistClaimsTable.phoneMatched,
       status:         artistClaimsTable.status,
@@ -388,7 +388,7 @@ router.get("/admin/artist-claims", requirePermission("artists.approve"), async (
     claims.map(async (c) => {
       let requesterEmail = "";
       try {
-        const who = await getIdentity(c.clerkUserId);
+        const who = await getIdentity(c.userId);
         requesterEmail = who.email || who.phone;
       } catch {
         // ignore — user may have been deleted
@@ -414,7 +414,7 @@ router.post("/admin/artist-claims/:id/approve", requirePermission("artists.appro
   // Link the Clerk account to the artist record
   await db
     .update(artistsTable)
-    .set({ clerkUserId: claim.clerkUserId, isVerified: "approved" })
+    .set({ userId: claim.userId, isVerified: "approved" })
     .where(eq(artistsTable.id, claim.artistId));
 
   const [updated] = await db
@@ -528,7 +528,7 @@ router.post("/admin/merge-requests/:id/set-password", requireAdminSession, async
   if (mr.artistId) {
     await db
       .update(artistsTable)
-      .set({ clerkUserId: accountId, isVerified: "approved" })
+      .set({ userId: accountId, isVerified: "approved" })
       .where(eq(artistsTable.id, mr.artistId));
   }
 
@@ -538,7 +538,7 @@ router.post("/admin/merge-requests/:id/set-password", requireAdminSession, async
     .where(eq(artistMergeRequestsTable.id, id))
     .returning();
 
-  return res.json({ ok: true, clerkUserId: accountId, mergeRequest: updated });
+  return res.json({ ok: true, userId: accountId, mergeRequest: updated });
 });
 
 // Deletes a gallery, its artist/artwork listings and its owner's sign-in account (email + password freed).
@@ -552,9 +552,9 @@ router.delete("/admin/galleries/:id", requireAdminSession, async (req, res) => {
     await tx.delete(galleryArtistsTable).where(eq(galleryArtistsTable.galleryId, id));
     await tx.delete(galleriesTable).where(eq(galleriesTable.id, id));
   });
-  const account = await eraseAccount(g.clerkUserId);
+  const account = await eraseAccount(g.userId);
   await closeEntityTasks("gallery", id, "gallery deleted");
-  await db.insert(authEventsTable).values({ accountId: g.clerkUserId, event: `gallery_deleted_by:${actorOf(req)}`, ip: req.ip ?? null });
+  await db.insert(authEventsTable).values({ accountId: g.userId, event: `gallery_deleted_by:${actorOf(req)}`, ip: req.ip ?? null });
   return res.json({ ok: true, account });
 });
 
@@ -562,8 +562,8 @@ router.delete("/admin/galleries/:id", requireAdminSession, async (req, res) => {
 router.get("/admin/accounts/unlinked", requireAdminSession, async (req, res) => {
   const role = req.query.role === "gallery_owner" ? "gallery_owner" : "artist";
   const used = role === "artist"
-    ? (await db.select({ id: artistsTable.clerkUserId }).from(artistsTable)).map((r) => r.id)
-    : (await db.select({ id: galleriesTable.clerkUserId }).from(galleriesTable)).map((r) => r.id);
+    ? (await db.select({ id: artistsTable.userId }).from(artistsTable)).map((r) => r.id)
+    : (await db.select({ id: galleriesTable.userId }).from(galleriesTable)).map((r) => r.id);
   const usedSet = new Set(used.filter(Boolean));
   const rows = (await db.select().from(authAccountsTable).where(eq(authAccountsTable.role, role)).orderBy(desc(authAccountsTable.createdAt)))
     .filter((a) => !usedSet.has(a.id));

@@ -37,7 +37,7 @@ const SAFE_ID = /^[0-9a-f-]{36}$/;
  * anonymous caller.
  *
  * Either identity is accepted, because both legitimately upload images:
- *   - a Clerk session (artist or gallery uploading artwork and profile photos,
+ *   - a signed-in session (artist or gallery uploading artwork and profile photos,
  *     including during registration, before their artist record exists), or
  *   - the admin session (admin console).
  */

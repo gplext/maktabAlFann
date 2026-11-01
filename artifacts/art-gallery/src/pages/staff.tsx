@@ -616,11 +616,18 @@ function OrdersTab({ me }: { me: Me }) {
             {can("orders.manage") && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {o.channel === "whatsapp" && o.status === "pending_purchase" && (
-                  <button className={btnPrimary} onClick={() => void act(`orders/${o.id}/whatsapp-confirm`, {})}>Confirmed in chat</button>
+                  <WhatsappConfirm order={o} onDone={(body) => act(`orders/${o.id}/whatsapp-confirm`, body)} />
                 )}
-                {(NEXT[o.status] ?? []).filter((s) => !(o.channel === "whatsapp" && o.status === "pending_purchase" && s === "confirmed")).map((s) => (
+                {(NEXT[o.status] ?? [])
+                  .filter((s) => !(o.channel === "whatsapp" && o.status === "pending_purchase" && s === "confirmed"))
+                  .filter((s) => !(s === "delivered" && o.paymentMethod === "cod" && o.paymentStatus !== "paid" && can("payments.confirm")))
+                  .map((s) => (
                   <button key={s} className={btn} onClick={() => void act(`orders/${o.id}/status`, { status: s })}>{s.replace("_", " ")}</button>
                 ))}
+                {o.status === "shipped" && o.paymentMethod === "cod" && o.paymentStatus !== "paid" && can("payments.confirm") && (<>
+                  <button className={btnPrimary} onClick={() => void act(`orders/${o.id}/status`, { status: "delivered", cashCollected: true })}>Delivered · cash received</button>
+                  <button className={btn} onClick={() => void act(`orders/${o.id}/status`, { status: "delivered" })}>Delivered · cash not yet</button>
+                </>)}
                 {can("payments.confirm") && o.paymentStatus !== "paid" && o.status === "delivered" && (
                   <button className={btn} onClick={() => void act(`orders/${o.id}/payment`, { method: "cod" })}>Cash collected</button>
                 )}
@@ -633,6 +640,38 @@ function OrdersTab({ me }: { me: Me }) {
         ))}
       </div>
     </Section>
+  );
+}
+
+/** "Confirmed in chat": records the delivery details agreed on WhatsApp before confirming. */
+function WhatsappConfirm({ order, onDone }: { order: StaffOrder; onDone: (body: Record<string, string>) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({
+    shippingAddress: order.shippingAddress ?? "", shippingCity: order.shippingCity ?? "",
+    shippingCountry: order.shippingCountry ?? "", contactEmail: order.contactEmail ?? "",
+  });
+  if (!open) return <button className={btnPrimary} onClick={() => setOpen(true)}>Confirmed in chat</button>;
+  const ready = f.shippingAddress.trim() && f.shippingCity.trim();
+  const field = (k: keyof typeof f, label: string, wide = false) => (
+    <label className={`text-xs ${wide ? "sm:col-span-2" : ""}`}>
+      <span className="block text-foreground/60 mb-1">{label}</span>
+      <input className="w-full border border-border bg-background px-2 py-1.5 text-sm" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+    </label>
+  );
+  return (
+    <div className="w-full border border-border p-3 space-y-2 bg-muted/30">
+      <p className="text-xs text-foreground/70">Delivery details agreed in the WhatsApp chat:</p>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {field("shippingAddress", "Address *", true)}
+        {field("shippingCity", "City *")}
+        {field("shippingCountry", "Country")}
+        {field("contactEmail", "Email (optional)", true)}
+      </div>
+      <div className="flex gap-2">
+        <button className={btnPrimary} disabled={!ready} onClick={() => void onDone(f).then(() => setOpen(false))}>Confirm order</button>
+        <button className={btn} onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

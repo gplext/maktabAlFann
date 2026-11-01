@@ -47,6 +47,10 @@ export function transitionProblem(order: Order, to: string): string | null {
   if (!(TRANSITIONS[order.status] ?? []).includes(to as OrderStatus)) {
     return `An order that is "${order.status.replace("_", " ")}" can't move to "${to.replace("_", " ")}".`;
   }
+  if (to === "confirmed" && order.channel === "whatsapp" && !order.shippingAddress) {
+    return "Enter the delivery address agreed in the WhatsApp chat (Staff console → Orders → Confirmed in chat).";
+  }
+  if (to === "shipped" && !order.shippingAddress) return "Add the delivery address before shipping.";
   if (to === "shipped" && order.region === "international" && order.paymentStatus !== "paid") {
     return "International orders must be paid before shipping.";
   }

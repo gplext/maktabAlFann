@@ -14,7 +14,7 @@ function toStorageUrl(p: string) {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type GalleryProfile = {
-  id: number; clerkUserId: string; name: string; description: string;
+  id: number; userId: string; name: string; description: string;
   email: string; phone: string; city: string; country: string;
   websiteUrl: string; logoUrl: string; status: string;
 };
