@@ -148,6 +148,8 @@ if (staticDir && fs.existsSync(path.join(staticDir, "index.html"))) {
   // Every other GET outside /api and /assets is a page of the single-page app. The server
   // fills in that page's title, description, share image and structured data, and answers
   // 404 for pages that don't exist. index.html is never cached, so a new deploy shows at once.
+  // Contact details now live at the end of Our Story.
+  app.get("/contact", (_req, res) => res.redirect(301, "/about#contact"));
   app.get(/^(?!\/(api|assets)(\/|$)).*/, async (req, res) => {
     const meta = await pageMeta(req, req.path);
     res.status(meta.status).setHeader("Cache-Control", "no-cache");

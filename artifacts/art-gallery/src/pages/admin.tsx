@@ -1,4 +1,5 @@
 import { AdminFrames } from "@/components/admin-frames";
+import { AdminCarousels } from "@/components/admin-carousels";
 import { useState, useEffect, useCallback } from "react";
 import { PasswordInput } from "@/components/ui/password-input";
 import { LinkedAccountPassword, UnlinkedAccounts } from "@/components/admin-account-password";
@@ -56,7 +57,7 @@ const EMPTY_COMMISSION_FORM = { artworkTitle: "", artworkId: "", salePrice: "", 
 
 const SHOP_TYPES = ["Stationary", "Frames", "Hanging Support"] as const;
 
-type Tab = "enquiries" | "artworks" | "artists" | "shop" | "details" | "orders" | "galleries" | "frames";
+type Tab = "enquiries" | "artworks" | "artists" | "shop" | "details" | "orders" | "galleries" | "frames" | "carousels";
 
 type AdminGallery = {
   id: number; name: string; email: string; phone: string;
@@ -643,6 +644,7 @@ export default function Admin() {
             { key: "details",   label: "Add Details",         badge: 0 },
             { key: "orders",    label: "Orders",              badge: pendingOrdersCount },
             { key: "frames",    label: "Frames",              badge: 0 },
+            { key: "carousels", label: "Carousels",           badge: 0 },
           ] as { key: Tab; label: string; badge: number }[]).map(({ key, label, badge }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-6 py-3 text-xs uppercase tracking-widest flex items-center gap-2 transition-colors border-b-2 -mb-px whitespace-nowrap ${tab === key ? "border-primary text-primary" : "border-transparent text-foreground/50 hover:text-foreground"}`}>
@@ -1927,6 +1929,8 @@ export default function Admin() {
         )}
 
         {tab === "frames" && <AdminFrames />}
+
+        {tab === "carousels" && <AdminCarousels />}
 
         {tab === "orders" && (
           <div>

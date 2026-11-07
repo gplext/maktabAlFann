@@ -15,6 +15,8 @@ import Artists from "@/pages/artists";
 import ArtistProfile from "@/pages/artist-profile";
 import Cart from "@/pages/cart";
 import About from "@/pages/about";
+import Privacy from "@/pages/privacy";
+import Terms from "@/pages/terms";
 import SpecialtyArt from "@/pages/specialty-art";
 import Shop from "@/pages/shop";
 const Admin = lazy(() => import("@/pages/admin"));
@@ -28,6 +30,7 @@ const StaffConsole = lazy(() => import("@/pages/staff"));
 import MuseumPage from "@/pages/museum";
 const AccountPage = lazy(() => import("@/pages/account"));
 import { TopNav } from "@/components/top-nav";
+import { SiteFooter } from "@/components/site-footer";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +59,9 @@ function Router() {
           <Route path="/shop" component={Shop} />
           <Route path="/cart" component={Cart} />
           <Route path="/about" component={About} />
+          <Route path="/contact">{() => <Redirect to="/about#contact" />}</Route>
+          <Route path="/privacy" component={Privacy} />
+          <Route path="/terms" component={Terms} />
           <Route path="/admin/login">{() => <Redirect to="/admin" />}</Route>
           <Route path="/admin" component={Admin} />
           <Route path="/staff" component={StaffConsole} />
@@ -73,6 +79,7 @@ function Router() {
         </Switch>
         </Suspense>
       </main>
+      <SiteFooter />
     </div>
   );
 }

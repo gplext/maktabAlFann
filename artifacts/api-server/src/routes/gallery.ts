@@ -16,6 +16,16 @@ router.get("/gallery/about", async (_req, res): Promise<void> => {
   res.json(GetGalleryAboutResponse.parse(rows[0]));
 });
 
+/** Public contact details for the footer and Contact page (from env; empty when not set). */
+router.get("/gallery/contact", (_req, res) => {
+  res.set("Cache-Control", "public, max-age=3600");
+  res.json({
+    whatsapp: (process.env.WHATSAPP_NUMBER ?? "").replace(/\D/g, ""),
+    email: (process.env.CONTACT_EMAIL ?? "").trim(),
+    city: "Lahore, Pakistan",
+  });
+});
+
 router.get("/gallery/stats", async (_req, res): Promise<void> => {
   const [artworkStats] = await db
     .select({

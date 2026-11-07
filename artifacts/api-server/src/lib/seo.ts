@@ -26,7 +26,7 @@ const PRIVATE = /^\/(admin|staff|account|cart|museum|portals|collector|artist-po
 /** Every route the React app knows (anything else is a 404). */
 const KNOWN = [
   /^\/$/, /^\/art$/, /^\/art\/\d+$/, /^\/artists$/, /^\/artists\/\d+$/, /^\/specialty$/, /^\/shop$/,
-  /^\/about$/, /^\/cart$/, /^\/museum$/, /^\/account$/, /^\/portals$/, /^\/collector$/, /^\/staff$/,
+  /^\/about$/, /^\/privacy$/, /^\/terms$/, /^\/cart$/, /^\/museum$/, /^\/account$/, /^\/portals$/, /^\/collector$/, /^\/staff$/,
   /^\/admin(\/login)?$/, /^\/artist-portal(\/register|\/submit)?$/, /^\/gallery-portal$/, /^\/sign-(in|up)(\/.*)?$/,
 ];
 
@@ -55,7 +55,15 @@ const STATIC_PAGES: Record<string, { title: string; description: string }> = {
   "/about": {
     title: "Our Story — Maktaba Al-Fann, Lahore",
     description:
-      "Maktaba Al-Fann is an online gallery from Lahore presenting Pakistani art with the story, style and technique behind every work.",
+      "Maktaba Al-Fann is an online gallery from Lahore presenting Pakistani art with the story behind every work. Contact us on WhatsApp about an artwork, an order or framing.",
+  },
+  "/privacy": {
+    title: "Privacy Policy | Maktaba Al-Fann",
+    description: "How Maktaba Al-Fann collects, uses, protects and deletes your personal information.",
+  },
+  "/terms": {
+    title: "Terms & Conditions | Maktaba Al-Fann",
+    description: "The terms for using Maktaba Al-Fann and for buying, selling and showing artworks on it.",
   },
 };
 
@@ -303,6 +311,8 @@ export async function sitemapXml(req: Request): Promise<string> {
     { loc: "/specialty", priority: "0.6" },
     { loc: "/shop", priority: "0.5" },
     { loc: "/about", priority: "0.4" },
+    { loc: "/privacy", priority: "0.2" },
+    { loc: "/terms", priority: "0.2" },
     ...artworks.map((a) => ({ loc: `/art/${a.id}`, lastmod: day(a.updatedAt), priority: "0.8" })),
     ...artists.map((a) => ({ loc: `/artists/${a.id}`, lastmod: day(a.updatedAt), priority: "0.7" })),
   ];

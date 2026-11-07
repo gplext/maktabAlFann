@@ -1,10 +1,12 @@
-import { useGetFeaturedArtworks, useGetGalleryStats } from "@workspace/api-client-react";
+import { useGetFeaturedArtworks, useGetGalleryStats, useListArtworks } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import { useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { HeroCrossfade, type HeroSlide } from "@/components/hero-crossfade";
 import { usePageMeta, DEFAULT_TITLE, DEFAULT_DESC } from "@/lib/seo";
+import { useCarousel } from "@/lib/carousel";
+import { ArtCarousel } from "@/components/art-carousel";
 
 const STATIC_SLIDES: HeroSlide[] = [
   { imageUrl: "https://picsum.photos/seed/lahore-fort/1920/1080",  label: "Architecture",    category: "Mughal Grandeur" },
@@ -45,29 +47,40 @@ const MOOD_CHIPS = [
 export default function Home() {
   usePageMeta({ title: DEFAULT_TITLE, description: DEFAULT_DESC });
   const { data: artworks, isLoading: loadingArtworks } = useGetFeaturedArtworks();
+  // Images and order come from Admin → Carousels ("home-hero").
+  const { data: carousel, isLoading: loadingCarousel, isError: carouselFailed } = useCarousel("home-hero");
   const { data: stats, isLoading: loadingStats } = useGetGalleryStats();
   const [searchQuery, setSearchQuery] = useState("");
   const [, navigate] = useLocation();
 
   const heroSlides = useMemo<HeroSlide[]>(() => {
-    const fromArtworks: HeroSlide[] =
-      artworks
-        ?.filter((a) => a.imageUrl && !a.imageUrl.includes("placehold.co"))
-        .slice(0, 6)
-        .map((a) => {
-          const mapped =
-            THEME_LABELS[a.theme ?? ""] ??
-            THEME_LABELS[a.artType ?? ""] ?? {
-              label: a.artType ?? "Fine Art",
-              category: a.theme ?? a.artType ?? "Pakistani Art",
-            };
-          return { imageUrl: a.imageUrl, label: mapped.label, category: mapped.category };
-        }) ?? [];
-    return fromArtworks.length >= 4 ? fromArtworks : STATIC_SLIDES;
-  }, [artworks]);
+    if (loadingCarousel) return [];
+    const source = carousel?.items.length
+      ? carousel.items.map((a) => ({ imageUrl: a.slideUrl ?? a.imageUrl, theme: a.theme, style: a.artStyle }))
+      : (carouselFailed ? artworks ?? [] : []).map((a) => ({ imageUrl: a.imageUrl, theme: a.theme, style: a.artType }));
+    const fromArtworks: HeroSlide[] = source
+      .filter((a) => a.imageUrl && !a.imageUrl.includes("placehold.co"))
+      .map((a) => {
+        const mapped =
+          THEME_LABELS[a.theme ?? ""] ??
+          THEME_LABELS[a.style ?? ""] ?? {
+            label: a.style ?? "Fine Art",
+            category: a.theme ?? a.style ?? "Pakistani Art",
+          };
+        return { imageUrl: a.imageUrl, label: mapped.label, category: mapped.category };
+      });
+    return fromArtworks.length > 0 ? fromArtworks : STATIC_SLIDES;
+  }, [carousel, loadingCarousel, carouselFailed, artworks]);
 
   const featured = artworks?.slice(0, 4) ?? [];
-  const compact = artworks?.slice(4, 8) ?? [];
+  // "More from the Collection": up to 20 other works (not the four shown above), as a sliding row.
+  const { data: collection } = useListArtworks({ limit: 40 });
+  const compact = useMemo(() => {
+    const shown = new Set((artworks ?? []).slice(0, 4).map((a) => a.id));
+    return (collection ?? [])
+      .filter((a) => !shown.has(a.id) && a.imageUrl && !a.imageUrl.includes("placehold.co"))
+      .slice(0, 20);
+  }, [collection, artworks]);
 
   const handleSearch = (query: string) => {
     if (!query.trim()) return;
@@ -135,10 +148,10 @@ export default function Home() {
               mountain valleys, and ancient Mughal heritage.
             </p>
             <Link
-              href="/art"
+              href="/about"
               className="inline-flex items-center gap-4 text-primary hover:text-secondary transition-colors group flex-shrink-0"
             >
-              <span className="font-display text-base uppercase tracking-widest">Enter the Gallery</span>
+              <span className="font-display text-base uppercase tracking-widest">Our Story</span>
               <div className="w-8 h-px bg-current group-hover:w-14 transition-all duration-500" />
             </Link>
           </motion.div>
@@ -151,12 +164,12 @@ export default function Home() {
       <motion.section
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 1, delay: 0.3 }}
+        transition={{ duration: 0.4 }}
         className="w-full"
       >
         <HeroCrossfade
           slides={heroSlides}
-          intervalMs={5000}
+          intervalMs={3000}
           className="w-full h-[55vh] md:h-[68vh] lg:h-[78vh]"
         />
       </motion.section>
@@ -217,7 +230,7 @@ export default function Home() {
               <Loader2 className="animate-spin text-primary w-10 h-10" />
             </div>
           ) : (
-            <div className="space-y-0">
+            <div className="space-y-10 md:space-y-16">
               {featured.map((artwork, i) => {
                 const isEven = i % 2 === 0;
                 return (
@@ -231,9 +244,10 @@ export default function Home() {
                   >
                     <Link
                       href={`/art/${artwork.id}`}
-                      className="block w-full md:w-[58%] group overflow-hidden bg-card flex-shrink-0"
+                      className="block relative w-full md:w-[58%] md:min-h-[420px] group overflow-hidden bg-card flex-shrink-0"
                     >
-                      <div className="aspect-[4/3] md:aspect-auto md:h-[420px] overflow-hidden relative">
+                      {/* On desktop the image fills the whole row, however tall the text beside it is: no empty band. */}
+                      <div className="aspect-[4/3] md:aspect-auto md:absolute md:inset-0 overflow-hidden relative">
                         <img loading="lazy" decoding="async"
                           src={artwork.imageUrl}
                           alt={artwork.title}
@@ -335,7 +349,7 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════
-          SECTION 6 — Compact 4-col grid
+          SECTION 6 — More from the Collection (sliding row)
       ══════════════════════════════════════ */}
       {compact.length > 0 && (
         <section className="py-20 px-6 md:px-16 lg:px-24">
@@ -344,37 +358,7 @@ export default function Home() {
               <h2 className="font-display text-xl text-primary uppercase tracking-widest">More from the Collection</h2>
               <div className="flex-1 h-px bg-border hidden md:block" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {compact.map((artwork, i) => (
-                <motion.div
-                  key={artwork.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.07, duration: 0.6 }}
-                >
-                  <Link href={`/art/${artwork.id}`} className="block group">
-                    <div className="aspect-[2/3] overflow-hidden bg-background border border-border relative">
-                      <img loading="lazy" decoding="async"
-                        src={artwork.imageUrl}
-                        alt={artwork.title}
-                        className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="absolute bottom-0 inset-x-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <p className="text-[10px] uppercase tracking-widest text-secondary truncate">{artwork.artType}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 px-0.5">
-                      <h4 className="text-xs font-display text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                        {artwork.title}
-                      </h4>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{artwork.artistName}</p>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
+            <ArtCarousel items={compact} />
             <div className="mt-12 text-center">
               <Link
                 href="/art"
@@ -389,16 +373,16 @@ export default function Home() {
       )}
 
       {/* ══════════════════════════════════════
-          SECTION 7 — Enter the Gallery CTA
+          SECTION 7 — Our Story CTA
       ══════════════════════════════════════ */}
       <section className="py-20 border-t border-border">
         <div className="flex justify-center">
           <Link
-            href="/art"
+            href="/about"
             className="inline-flex items-center gap-5 text-primary hover:text-secondary transition-colors group"
           >
             <div className="w-8 h-px bg-current group-hover:w-14 transition-all duration-500" />
-            <span className="font-display text-xl uppercase tracking-widest">Enter the Gallery</span>
+            <span className="font-display text-xl uppercase tracking-widest">Our Story</span>
             <div className="w-8 h-px bg-current group-hover:w-14 transition-all duration-500" />
           </Link>
         </div>

@@ -2,6 +2,7 @@ import { useGetGalleryAbout } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
+import { ContactSection } from "@/components/contact-section";
 
 export default function About() {
   usePageMeta({ title: `Our Story — ${SITE_NAME}, Lahore`, description: "Maktaba Al-Fann is an online gallery from Lahore presenting Pakistani art with the story, style and technique behind every work." });
@@ -12,7 +13,12 @@ export default function About() {
   }
 
   if (!about) {
-    return null;
+    // The story text couldn't load: still show how to reach us.
+    return (
+      <div className="bg-background min-h-screen text-foreground pt-8 pb-24">
+        <div className="container mx-auto px-6 md:px-12 max-w-5xl"><ContactSection /></div>
+      </div>
+    );
   }
 
   return (
@@ -86,6 +92,8 @@ export default function About() {
             </div>
           </section>
         )}
+
+        <ContactSection />
       </div>
     </div>
   );

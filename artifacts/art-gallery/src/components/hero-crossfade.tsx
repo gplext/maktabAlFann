@@ -13,29 +13,34 @@ interface Props {
   className?: string;
 }
 
-export function HeroCrossfade({ slides, intervalMs = 5000, className = "" }: Props) {
+export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Props) {
   const [current, setCurrent] = useState(0);
-  const [paused, setPaused] = useState(false);
 
   const advance = useCallback(() => {
     setCurrent((i) => (i + 1) % Math.max(slides.length, 1));
   }, [slides.length]);
 
   useEffect(() => {
-    if (paused || slides.length < 2) return;
+    if (slides.length < 2) return;
     const id = setInterval(advance, intervalMs);
     return () => clearInterval(id);
-  }, [advance, intervalMs, paused, slides.length]);
+  }, [advance, intervalMs, slides.length]);
 
-  if (slides.length === 0) return null;
+  // Preload every slide so changing slides never waits on a download.
+  useEffect(() => {
+    slides.forEach((s) => {
+      const img = new Image();
+      img.src = s.imageUrl;
+    });
+  }, [slides]);
+
+  if (slides.length === 0) return <div className={className} />;
 
   const active = slides[current] ?? slides[0];
 
   return (
     <div
       className={`relative overflow-hidden ${className}`}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
     >
       <AnimatePresence initial={false}>
         <motion.div
@@ -44,7 +49,7 @@ export function HeroCrossfade({ slides, intervalMs = 5000, className = "" }: Pro
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.4, ease: "easeInOut" }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
         >
           <img
             src={active.imageUrl}

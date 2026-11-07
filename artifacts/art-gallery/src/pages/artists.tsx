@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { Loader2, Search, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
+import { useCarousel } from "@/lib/carousel";
 
 export default function Artists() {
   usePageMeta({ title: `Pakistani Artists — Painters & Sculptors | ${SITE_NAME}`, description: "Meet the Pakistani artists of Maktaba Al-Fann: their stories, styles, influences and original works available to buy online." });
@@ -23,10 +24,18 @@ export default function Artists() {
     [artists]
   );
 
+  // Which artists and in what order come from Admin → Carousels ("artists-featured").
+  const { data: carousel } = useCarousel("artists-featured");
   const featured = useMemo(() => {
     if (!artists) return [];
+    const ids = carousel?.items.map((i) => i.id) ?? [];
+    if (ids.length > 0) {
+      const byId = new Map(artists.map((a) => [a.id, a]));
+      const picked = ids.map((id) => byId.get(id)).filter((a): a is Artist => !!a);
+      if (picked.length > 0) return picked;
+    }
     return [...artists].sort((a, b) => b.artworkCount - a.artworkCount).slice(0, 5);
-  }, [artists]);
+  }, [artists, carousel]);
 
   return (
     <div className="bg-background min-h-screen text-foreground pt-28 pb-24">

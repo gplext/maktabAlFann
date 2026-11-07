@@ -24,7 +24,7 @@ Other commands:
 
 ## Database
 
-PostgreSQL. Apply the SQL files in `migrations/` in order (01 → 08) with
+PostgreSQL. Apply the SQL files in `migrations/` in order (01 → 09) with
 `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/<file>.sql`. Each file is
 one transaction and safe to re-run. `deploy/create-readonly-user.sql` creates a
 read-only login for browsing the live database.

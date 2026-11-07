@@ -22,6 +22,7 @@ import authRouter from "./auth";
 import staffRouter from "./staff";
 import museumRouter from "./museum";
 import framesRouter from "./frames";
+import carouselsRouter from "./carousels";
 
 const router: IRouter = Router();
 
@@ -42,6 +43,7 @@ router.use(storageRouter);
 router.use(portfolioRouter);
 router.use(shopRouter);
 router.use(framesRouter);
+router.use(carouselsRouter);
 router.use(lookupRouter);
 router.use(galleryCommissionRouter);
 router.use(supplierRouter);
