@@ -26,7 +26,7 @@ const PRIVATE = /^\/(admin|staff|account|cart|museum|portals|collector|artist-po
 /** Every route the React app knows (anything else is a 404). */
 const KNOWN = [
   /^\/$/, /^\/art$/, /^\/art\/\d+$/, /^\/artists$/, /^\/artists\/\d+$/, /^\/specialty$/, /^\/shop$/,
-  /^\/about$/, /^\/privacy$/, /^\/terms$/, /^\/cart$/, /^\/museum$/, /^\/account$/, /^\/portals$/, /^\/collector$/, /^\/staff$/,
+  /^\/about$/, /^\/privacy$/, /^\/terms$/, /^\/sitemap$/, /^\/cart$/, /^\/museum$/, /^\/account$/, /^\/portals$/, /^\/collector$/, /^\/staff$/,
   /^\/admin(\/login)?$/, /^\/artist-portal(\/register|\/submit)?$/, /^\/gallery-portal$/, /^\/sign-(in|up)(\/.*)?$/,
 ];
 
@@ -60,6 +60,10 @@ const STATIC_PAGES: Record<string, { title: string; description: string }> = {
   "/privacy": {
     title: "Privacy Policy | Maktaba Al-Fann",
     description: "How Maktaba Al-Fann collects, uses, protects and deletes your personal information.",
+  },
+  "/sitemap": {
+    title: "Sitemap | Maktaba Al-Fann",
+    description: "Every page of Maktaba Al-Fann in one place: the gallery, every Pakistani artist and every artwork in the collection.",
   },
   "/terms": {
     title: "Terms & Conditions | Maktaba Al-Fann",
@@ -313,6 +317,7 @@ export async function sitemapXml(req: Request): Promise<string> {
     { loc: "/about", priority: "0.4" },
     { loc: "/privacy", priority: "0.2" },
     { loc: "/terms", priority: "0.2" },
+    { loc: "/sitemap", priority: "0.3" },
     ...artworks.map((a) => ({ loc: `/art/${a.id}`, lastmod: day(a.updatedAt), priority: "0.8" })),
     ...artists.map((a) => ({ loc: `/artists/${a.id}`, lastmod: day(a.updatedAt), priority: "0.7" })),
   ];

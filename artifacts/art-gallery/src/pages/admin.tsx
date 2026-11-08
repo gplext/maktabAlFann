@@ -1,5 +1,6 @@
 import { AdminFrames } from "@/components/admin-frames";
 import { AdminCarousels } from "@/components/admin-carousels";
+import { AdminDuplicates } from "@/components/admin-duplicates";
 import { useState, useEffect, useCallback } from "react";
 import { PasswordInput } from "@/components/ui/password-input";
 import { LinkedAccountPassword, UnlinkedAccounts } from "@/components/admin-account-password";
@@ -100,7 +101,7 @@ export default function Admin() {
   const [pendingArtworks, setPendingArtworks] = useState<PendingArtwork[]>([]);
   const [approvedArtworks, setApprovedArtworks] = useState<PendingArtwork[]>([]);
   const [rejectedArtworks, setRejectedArtworks] = useState<PendingArtwork[]>([]);
-  const [artworkSubTab, setArtworkSubTab] = useState<"pending" | "approved" | "rejected">("pending");
+  const [artworkSubTab, setArtworkSubTab] = useState<"pending" | "approved" | "rejected" | "duplicates">("pending");
   const [artistSubTab, setArtistSubTab] = useState<"list" | "merge-requests" | "logins">("list");
   const [shopItems, setShopItems] = useState<ShopItemData[]>([]);
   const [allArtists, setAllArtists] = useState<AdminArtist[]>([]);
@@ -535,6 +536,21 @@ export default function Admin() {
     }
   };
 
+  /** Permanently delete one artwork; the artist and their other works stay. */
+  const deleteArtwork = async (id: number, title: string) => {
+    if (!window.confirm(`Delete "${title}" permanently?\n\nThe artwork is removed from the website and cannot be restored (except from a database backup). The artist and their other works stay.`)) return;
+    const res = await fetch(`/api/admin/artworks/${id}`, { method: "DELETE", credentials: "include" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast({ title: "Could not delete", description: body.error ?? `The server answered ${res.status}.`, variant: "destructive" });
+      return;
+    }
+    setPendingArtworks((prev) => prev.filter((a) => a.id !== id));
+    setApprovedArtworks((prev) => prev.filter((a) => a.id !== id));
+    setRejectedArtworks((prev) => prev.filter((a) => a.id !== id));
+    toast({ title: `"${title}" deleted` });
+  };
+
   const reviewArtwork = async (id: number, action: "approve" | "reject") => {
     const res = await fetch(`/api/admin/artworks/${id}/${action}`, { method: "PATCH", credentials: "include" });
     if (res.ok) {
@@ -722,7 +738,8 @@ export default function Admin() {
                 { key: "pending",  label: "Pending",  count: pendingArtworks.length,  color: "text-amber-700" },
                 { key: "approved", label: "Approved", count: approvedArtworks.length, color: "text-emerald-700" },
                 { key: "rejected", label: "Rejected", count: rejectedArtworks.length, color: "text-rose-700" },
-              ] as { key: "pending" | "approved" | "rejected"; label: string; count: number; color: string }[]).map(({ key, label, count, color }) => (
+                { key: "duplicates", label: "Duplicates & new pictures", count: 0, color: "" },
+              ] as { key: "pending" | "approved" | "rejected" | "duplicates"; label: string; count: number; color: string }[]).map(({ key, label, count, color }) => (
                 <button key={key} onClick={() => setArtworkSubTab(key)}
                   className={`px-5 py-2.5 text-xs uppercase tracking-widest flex items-center gap-2 transition-colors border-b-2 -mb-px ${artworkSubTab === key ? "border-primary text-primary" : "border-transparent text-foreground/50 hover:text-foreground"}`}>
                   {label}
@@ -730,6 +747,8 @@ export default function Admin() {
                 </button>
               ))}
             </div>
+
+            {artworkSubTab === "duplicates" && <AdminDuplicates />}
 
             {artworkSubTab === "pending" && (
               pendingArtworks.length === 0 ? (
@@ -740,7 +759,7 @@ export default function Admin() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {pendingArtworks.map((art) => (
-                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} showActions />
+                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} onDelete={deleteArtwork} showActions />
                   ))}
                 </div>
               )
@@ -754,7 +773,7 @@ export default function Admin() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {approvedArtworks.map((art) => (
-                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} showActions={false} />
+                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} onDelete={deleteArtwork} showActions={false} />
                   ))}
                 </div>
               )
@@ -768,7 +787,7 @@ export default function Admin() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {rejectedArtworks.map((art) => (
-                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} showActions={false} />
+                    <ArtworkReviewCard key={art.id} art={art} onReview={reviewArtwork} onPriceUpdate={updateArtworkPrice} onDelete={deleteArtwork} showActions={false} />
                   ))}
                 </div>
               )
@@ -2129,11 +2148,13 @@ function ArtworkReviewCard({
   art,
   onReview,
   onPriceUpdate,
+  onDelete,
   showActions,
 }: {
   art: PendingArtwork;
   onReview: (id: number, action: "approve" | "reject") => void;
   onPriceUpdate: (id: number, displayPrice: number | null) => void;
+  onDelete?: (id: number, title: string) => void;
   showActions: boolean;
 }) {
   const [editingPrice, setEditingPrice] = useState(false);
@@ -2236,6 +2257,13 @@ function ArtworkReviewCard({
             <button onClick={() => onReview(art.id, "reject")} className="flex-1 flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest border border-rose-200 text-rose-600 hover:bg-rose-50 py-2 transition-colors"><X size={13} /> Reject</button>
             <button onClick={() => onReview(art.id, "approve")} className="flex-1 flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 py-2 transition-colors"><Check size={13} /> Approve</button>
           </div>
+        )}
+
+        {onDelete && (
+          <button onClick={() => onDelete(art.id, art.title)}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest border border-destructive/40 text-destructive hover:bg-destructive/10 py-2 transition-colors">
+            <Trash2 size={13} /> Delete artwork
+          </button>
         )}
       </div>
     </div>

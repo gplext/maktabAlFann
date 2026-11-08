@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface HeroSlide {
   imageUrl: string;
@@ -15,6 +16,8 @@ interface Props {
 
 export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Props) {
   const [current, setCurrent] = useState(0);
+  // Bumped when a visitor picks a slide, so the 3-second timer restarts from that slide.
+  const [manual, setManual] = useState(0);
 
   const advance = useCallback(() => {
     setCurrent((i) => (i + 1) % Math.max(slides.length, 1));
@@ -24,7 +27,13 @@ export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Pro
     if (slides.length < 2) return;
     const id = setInterval(advance, intervalMs);
     return () => clearInterval(id);
-  }, [advance, intervalMs, slides.length]);
+  }, [advance, intervalMs, slides.length, manual]);
+
+  const go = (i: number) => {
+    const n = Math.max(slides.length, 1);
+    setCurrent(((i % n) + n) % n);
+    setManual((m) => m + 1);
+  };
 
   // Preload every slide so changing slides never waits on a download.
   useEffect(() => {
@@ -82,19 +91,35 @@ export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Pro
         </AnimatePresence>
       </div>
 
-      {/* Dot indicators — bottom right */}
-      <div className="absolute bottom-8 right-8 z-20 flex gap-2 items-center">
+      {/* Previous / next — large enough to tap */}
+      {slides.length > 1 && (
+        <>
+          <button onClick={() => go(current - 1)} aria-label="Previous painting"
+            className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center bg-black/35 hover:bg-black/55 text-white border border-white/30 backdrop-blur-sm transition-colors">
+            <ChevronLeft className="w-6 h-6 md:w-7 md:h-7" />
+          </button>
+          <button onClick={() => go(current + 1)} aria-label="Next painting"
+            className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center bg-black/35 hover:bg-black/55 text-white border border-white/30 backdrop-blur-sm transition-colors">
+            <ChevronRight className="w-6 h-6 md:w-7 md:h-7" />
+          </button>
+        </>
+      )}
+
+      {/* Slide markers — bottom right: close together, each bar 24–40 px wide with a 40 px tall click area.
+          Phones use the arrows instead: ten 40 px markers wouldn't fit across the screen. */}
+      <div className="absolute bottom-5 right-6 z-20 hidden md:flex items-center">
         {slides.map((_, i) => (
           <button
             key={i}
-            onClick={() => setCurrent(i)}
-            aria-label={`Slide ${i + 1}`}
-            className={`block transition-all duration-500 rounded-full ${
-              i === current
-                ? "w-6 h-[2px] bg-secondary"
-                : "w-2 h-[2px] bg-white/40 hover:bg-white/70"
-            }`}
-          />
+            onClick={() => go(i)}
+            aria-label={`Show painting ${i + 1}`}
+            aria-current={i === current}
+            className="group h-10 px-1 flex items-center"
+          >
+            <span className={`block h-1 rounded-full transition-all duration-500 ${
+              i === current ? "w-10 bg-secondary" : "w-6 bg-white/50 group-hover:bg-white/80"
+            }`} />
+          </button>
         ))}
       </div>
     </div>

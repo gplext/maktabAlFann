@@ -1,8 +1,9 @@
 import { useListArtworks, useGetArtworkFilters, useSearchArtworks } from "@workspace/api-client-react";
 import { useMemo, useState, useEffect } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useLocation } from "wouter";
-import { Loader2, Filter, X, Search, Sparkles, ChevronDown } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { Loader2, Filter, X, Search, Sparkles, ChevronDown, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Artwork } from "@workspace/api-client-react";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
@@ -14,7 +15,6 @@ import { usePageMeta, SITE_NAME } from "@/lib/seo";
  * `artType=Handicraft` against a column that no longer holds that value.
  */
 type Filters = {
-  nationality?: string;
   artCategoryId?: number;
   artStyleId?: number;
   sizeId?: number;
@@ -29,12 +29,24 @@ export default function ArtCollection() {
   const [activeQuery, setActiveQuery] = useState("");
   const [location] = useLocation();
 
-  const { data: artworks, isLoading } = useListArtworks(filters);
-  const { data: filterOptions } = useGetArtworkFilters();
+  // 100 artworks per page. One extra is fetched only to know whether a next page exists.
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const filtersKey = JSON.stringify(filters);
+  useEffect(() => { setPage(1); }, [filtersKey]);
+  const { data: pageRows, isLoading } = useListArtworks({ ...filters, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  const artworks = useMemo(() => pageRows?.slice(0, PAGE_SIZE), [pageRows]);
+  const hasNextPage = (pageRows?.length ?? 0) > PAGE_SIZE;
+  const goToPage = (n: number) => { setPage(n); window.scrollTo(0, 0); };
+  // Counts follow the filters chosen in the other groups; the previous numbers stay on screen while new ones load.
+  const { data: filterOptions } = useGetArtworkFilters(filters, { query: { placeholderData: keepPreviousData } });
   const searchMutation = useSearchArtworks();
 
+  // Re-read the query string whenever it changes, so links within /art (such as
+  // "View all →" to /art?artCategory=…) apply their filter, not only on first load.
+  const urlSearch = useSearch();
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(urlSearch);
 
     const q = params.get("search");
     if (q) {
@@ -49,7 +61,8 @@ export default function ArtCollection() {
     const category = params.get("artCategory");
     const style = params.get("artStyle") ?? params.get("artType");
     if (category || style) setPendingUrlFilter({ category, style });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSearch]);
 
   const [pendingUrlFilter, setPendingUrlFilter] =
     useState<{ category: string | null; style: string | null } | null>(null);
@@ -68,6 +81,21 @@ export default function ArtCollection() {
   }, [pendingUrlFilter, filterOptions]);
 
   const hasActiveFilters = Object.values(filters).some(Boolean);
+
+  /** The chosen filters as labelled chips ("Style: Realism"), shown above the results. */
+  const activeChips = useMemo(() => {
+    if (!filterOptions) return [];
+    const groups: [keyof Filters, string, { id: number; name: string }[] | undefined][] = [
+      ["artCategoryId", "Art type", filterOptions.categories],
+      ["artStyleId", "Style", filterOptions.styles],
+      ["paintMaterialId", "Medium", filterOptions.paintMaterials],
+      ["baseTypeId", "Surface", filterOptions.baseTypes],
+      ["sizeId", "Scale", filterOptions.sizes],
+    ];
+    return groups
+      .map(([key, label, list]) => ({ key, label, value: nameOf(list ?? [], filters[key]) }))
+      .filter((c): c is { key: keyof Filters; label: string; value: string } => !!c.value);
+  }, [filters, filterOptions]);
   const isAiSearchMode = !!activeQuery;
 
   const needle = searchQuery.trim().toLowerCase();
@@ -224,14 +252,14 @@ export default function ArtCollection() {
                   <div className="space-y-1">
                     {filterOptions && (
                       <>
-                        <CollapsibleFilterSection title="Art type">
+                        <CollapsibleFilterSection title="Art type" active={nameOf(filterOptions.categories, filters.artCategoryId)}>
                           <LookupFilterGroup
                             options={filterOptions.categories}
                             selected={filters.artCategoryId}
                             onChange={(v) => setFilters((f) => ({ ...f, artCategoryId: v }))}
                           />
                         </CollapsibleFilterSection>
-                        <CollapsibleFilterSection title="Style">
+                        <CollapsibleFilterSection title="Style" active={nameOf(filterOptions.styles, filters.artStyleId)}>
                           <LookupFilterGroup
                             options={filterOptions.styles}
                             selected={filters.artStyleId}
@@ -239,7 +267,7 @@ export default function ArtCollection() {
                           />
                         </CollapsibleFilterSection>
                         {(filterOptions.paintMaterials ?? []).some((o) => o.count > 0) && (
-                          <CollapsibleFilterSection title="Medium">
+                          <CollapsibleFilterSection title="Medium" active={nameOf(filterOptions.paintMaterials ?? [], filters.paintMaterialId)}>
                             <LookupFilterGroup
                               options={(filterOptions.paintMaterials ?? []).filter((o) => o.count > 0)}
                               selected={filters.paintMaterialId}
@@ -248,7 +276,7 @@ export default function ArtCollection() {
                           </CollapsibleFilterSection>
                         )}
                         {(filterOptions.baseTypes ?? []).some((o) => o.count > 0) && (
-                          <CollapsibleFilterSection title="Surface">
+                          <CollapsibleFilterSection title="Surface" active={nameOf(filterOptions.baseTypes ?? [], filters.baseTypeId)}>
                             <LookupFilterGroup
                               options={(filterOptions.baseTypes ?? []).filter((o) => o.count > 0)}
                               selected={filters.baseTypeId}
@@ -256,14 +284,7 @@ export default function ArtCollection() {
                             />
                           </CollapsibleFilterSection>
                         )}
-                        <CollapsibleFilterSection title="Origin">
-                          <FilterGroup
-                            options={filterOptions.nationalities}
-                            selected={filters.nationality}
-                            onChange={(v) => setFilters((f) => ({ ...f, nationality: v }))}
-                          />
-                        </CollapsibleFilterSection>
-                        <CollapsibleFilterSection title="Scale" last>
+                        <CollapsibleFilterSection title="Scale" last active={nameOf(filterOptions.sizes, filters.sizeId)}>
                           <LookupFilterGroup
                             options={filterOptions.sizes}
                             selected={filters.sizeId}
@@ -280,6 +301,25 @@ export default function ArtCollection() {
 
           {/* ── Main content ── */}
           <main className="flex-1 min-w-0">
+
+            {!isSearchMode && activeChips.length > 0 && (
+              <div className="mb-10 flex flex-wrap items-center gap-2" aria-live="polite">
+                <span className="text-xs uppercase tracking-widest text-foreground/60 mr-1">
+                  Showing {artworks?.length ?? 0}{hasNextPage ? "+" : ""} {artworks?.length === 1 ? "work" : "works"}:
+                </span>
+                {activeChips.map((c) => (
+                  <button key={c.key} onClick={() => setFilters((f) => ({ ...f, [c.key]: undefined }))}
+                    aria-label={`Remove filter ${c.label}: ${c.value}`}
+                    className="inline-flex items-center gap-2 h-9 pl-3 pr-2 bg-primary text-primary-foreground text-sm hover:bg-primary/85 transition-colors">
+                    <span className="opacity-75">{c.label}:</span> <span className="font-medium">{c.value}</span> <X size={14} />
+                  </button>
+                ))}
+                <button onClick={() => setFilters({})}
+                  className="h-9 px-3 text-xs uppercase tracking-widest text-foreground/70 border border-border hover:border-primary hover:text-primary transition-colors">
+                  Clear all
+                </button>
+              </div>
+            )}
 
             {/* Search results: flat grid */}
             {isSearchMode ? (
@@ -336,6 +376,7 @@ export default function ArtCollection() {
                   </button>
                 </div>
               ) : (
+                <>
                 <div className="space-y-28">
                   {groups.map(([category, works], idx) => (
                     <MosaicGroup
@@ -346,6 +387,20 @@ export default function ArtCollection() {
                     />
                   ))}
                 </div>
+                {(page > 1 || hasNextPage) && (
+                  <nav aria-label="Pages" className="mt-20 flex items-center justify-center gap-4">
+                    <button onClick={() => goToPage(page - 1)} disabled={page === 1}
+                      className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                      <ChevronLeft size={16} /> Previous
+                    </button>
+                    <span className="text-xs uppercase tracking-widest text-foreground/60">Page {page}</span>
+                    <button onClick={() => goToPage(page + 1)} disabled={!hasNextPage}
+                      className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                      Next <ChevronRight size={16} />
+                    </button>
+                  </nav>
+                )}
+                </>
               )
             )}
           </main>
@@ -552,10 +607,13 @@ function CollapsibleFilterSection({
   title,
   children,
   last = false,
+  active,
 }: {
   title: string;
   children: React.ReactNode;
   last?: boolean;
+  /** The chosen option, shown beside the heading so it stays visible when the section is closed. */
+  active?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -565,8 +623,11 @@ function CollapsibleFilterSection({
         onClick={() => setOpen((o) => !o)}
         className="flex items-center justify-between w-full text-left group"
       >
-        <h3 className="text-xs uppercase tracking-widest text-foreground/50 group-hover:text-foreground/80 transition-colors">
+        <h3 className={`text-xs uppercase tracking-widest transition-colors flex items-center gap-2 min-w-0 ${active ? "text-primary font-medium" : "text-foreground/60 group-hover:text-foreground"}`}>
           {title}
+          {active && (
+            <span className="normal-case tracking-normal text-[11px] bg-primary text-primary-foreground px-1.5 py-0.5 truncate max-w-[8rem]">{active}</span>
+          )}
         </h3>
         <ChevronDown
           size={14}
@@ -615,65 +676,38 @@ function LookupFilterGroup({
     <div className="space-y-1.5">
       <button
         onClick={() => onChange(undefined)}
-        className={`block text-left w-full text-sm transition-colors ${
-          selected == null ? "text-primary font-medium" : "text-foreground/60 hover:text-foreground"
+        className={`block text-left w-full text-sm px-2 py-1.5 -mx-2 transition-colors ${
+          selected == null ? "text-foreground font-medium" : "text-foreground/75 hover:text-foreground hover:bg-foreground/5"
         }`}
       >
         All
       </button>
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          disabled={opt.count === 0}
-          onClick={() => onChange(selected === opt.id ? undefined : opt.id)}
-          className={`flex items-baseline justify-between gap-2 text-left w-full text-sm transition-colors ${
-            selected === opt.id
-              ? "text-primary font-medium"
-              : opt.count === 0
-                ? "text-foreground/25 cursor-not-allowed"
-                : "text-foreground/60 hover:text-foreground"
-          }`}
-        >
-          <span>{opt.name}</span>
-          <span className="text-[10px] text-foreground/30 tabular-nums">{opt.count}</span>
-        </button>
-      ))}
+      {options.map((opt) => {
+        const on = selected === opt.id;
+        return (
+          <button
+            key={opt.id}
+            disabled={opt.count === 0 && !on}
+            aria-pressed={on}
+            onClick={() => onChange(on ? undefined : opt.id)}
+            className={`flex items-center justify-between gap-2 text-left w-full text-sm px-2 py-1.5 -mx-2 transition-colors ${
+              on
+                ? "bg-primary text-primary-foreground font-medium"
+                : opt.count === 0
+                  ? "text-foreground/30 cursor-not-allowed"
+                  : "text-foreground/75 hover:text-foreground hover:bg-foreground/5"
+            }`}
+          >
+            <span className="flex items-center gap-1.5">{on && <Check size={14} />}{opt.name}</span>
+            <span className={`text-xs tabular-nums ${on ? "text-primary-foreground" : opt.count === 0 ? "text-foreground/30" : "text-foreground/70"}`}>{opt.count}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function FilterGroup({
-  options,
-  selected,
-  onChange,
-}: {
-  options: string[];
-  selected?: string;
-  onChange: (v?: string) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <button
-        onClick={() => onChange(undefined)}
-        className={`block text-left w-full text-sm transition-colors ${
-          !selected ? "text-primary font-medium" : "text-foreground/60 hover:text-foreground"
-        }`}
-      >
-        All
-      </button>
-      {options.map((opt) => (
-        <button
-          key={opt}
-          onClick={() => onChange(selected === opt ? undefined : opt)}
-          className={`block text-left w-full text-sm transition-colors ${
-            selected === opt
-              ? "text-primary font-medium"
-              : "text-foreground/60 hover:text-foreground"
-          }`}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
+/** Display name of the chosen option in a lookup list. */
+function nameOf(list: { id: number; name: string }[], id?: number): string | undefined {
+  return id == null ? undefined : list.find((o) => o.id === id)?.name;
 }

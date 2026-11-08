@@ -149,15 +149,25 @@ export function useGetFeaturedArtworks(
   );
 }
 
-export const getGetArtworkFiltersQueryKey = () =>
-  ["/artworks/filters"] as const;
+/** The filters already chosen; each group's counts then reflect the other groups. */
+export type ArtworkFiltersParams = {
+  artCategoryId?: number;
+  artStyleId?: number;
+  sizeId?: number;
+  baseTypeId?: number;
+  paintMaterialId?: number;
+};
+
+export const getGetArtworkFiltersQueryKey = (params?: ArtworkFiltersParams) =>
+  ["/artworks/filters", params ?? {}] as const;
 
 export function useGetArtworkFilters(
+  params?: ArtworkFiltersParams,
   options?: QueryHookOptions<GetArtworkFiltersResponse>,
 ): UseQueryResult<GetArtworkFiltersResponse, Error> {
   return runQuery(
-    getGetArtworkFiltersQueryKey(),
-    () => apiGet<GetArtworkFiltersResponse>("/artworks/filters"),
+    getGetArtworkFiltersQueryKey(params),
+    () => apiGet<GetArtworkFiltersResponse>(`/artworks/filters${toSearchParams(params as QueryParams)}`),
     options,
   );
 }

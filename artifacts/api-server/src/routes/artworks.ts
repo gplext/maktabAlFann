@@ -125,6 +125,7 @@ router.get("/artworks", async (req, res): Promise<void> => {
 
   const rows = await cardQuery()
     .where(and(...conditions))
+    .orderBy(artworksTable.id) // a fixed order, so pages (limit/offset) never repeat or skip a work
     .limit(limit ?? 100)
     .offset(offset ?? 0);
 
@@ -149,31 +150,65 @@ router.get("/artworks/featured", async (_req, res): Promise<void> => {
  * filter that returns nothing — which is exactly what used to happen when
  * artworks were tagged 'Handicraft' and the category list said 'Paintings'.
  */
-router.get("/artworks/filters", async (_req, res): Promise<void> => {
-  const publicArtworks = db
-    .select({
-      artCategoryId: artworksTable.artCategoryId,
-      artStyleId: artworksTable.artStyleId,
-      sizeId: artworksTable.sizeId,
-      baseTypeId: artworksTable.baseTypeId,
-      paintMaterialId: artworksTable.paintMaterialId,
-      theme: artworksTable.theme,
-      nationality: artistsTable.country,
-    })
-    .from(artworksTable)
-    .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
-    .where(PUBLIC_ONLY)
-    .as("public_artworks");
+/**
+ * Filter options for the /art sidebar, with live counts.
+ *
+ * Counts are "faceted": each option's number is how many public artworks you
+ * would see if you picked it, given the filters already chosen in the OTHER
+ * groups (?artCategoryId=…&artStyleId=…&sizeId=…&baseTypeId=…&paintMaterialId=…).
+ * A group never narrows its own counts, so you can still see its alternatives.
+ */
+type Facet = "artCategoryId" | "artStyleId" | "sizeId" | "baseTypeId" | "paintMaterialId";
+router.get("/artworks/filters", async (req, res): Promise<void> => {
+  const chosen: Partial<Record<Facet, number>> = {};
+  for (const k of ["artCategoryId", "artStyleId", "sizeId", "baseTypeId", "paintMaterialId"] as Facet[]) {
+    const n = Number(req.query[k]);
+    if (Number.isInteger(n) && n > 0) chosen[k] = n;
+  }
+  const facetColumn = {
+    artCategoryId: artworksTable.artCategoryId,
+    artStyleId: artworksTable.artStyleId,
+    sizeId: artworksTable.sizeId,
+    baseTypeId: artworksTable.baseTypeId,
+    paintMaterialId: artworksTable.paintMaterialId,
+  };
+  /** Public artworks narrowed by every chosen filter except `except`. */
+  const scoped = (except: Facet | null) => {
+    const conds: SQL[] = [PUBLIC_ONLY!];
+    for (const [k, v] of Object.entries(chosen) as [Facet, number][]) {
+      if (k !== except) conds.push(eq(facetColumn[k], v));
+    }
+    return db
+      .select({
+        artCategoryId: artworksTable.artCategoryId,
+        artStyleId: artworksTable.artStyleId,
+        sizeId: artworksTable.sizeId,
+        baseTypeId: artworksTable.baseTypeId,
+        paintMaterialId: artworksTable.paintMaterialId,
+        theme: artworksTable.theme,
+        nationality: artistsTable.country,
+      })
+      .from(artworksTable)
+      .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
+      .where(and(...conds))
+      .as(`public_artworks_${except ?? "all"}`);
+  };
+  const forCategories = scoped("artCategoryId");
+  const forStyles = scoped("artStyleId");
+  const forSizes = scoped("sizeId");
+  const forBaseTypes = scoped("baseTypeId");
+  const forMaterials = scoped("paintMaterialId");
+  const publicArtworks = scoped(null);
 
   const [categories, styles, sizes, freeText, baseTypes, paintMaterials] = await Promise.all([
     db
       .select({
         id: artCategoriesTable.id,
         name: artCategoriesTable.name,
-        count: sql<number>`count(${publicArtworks.artCategoryId})::int`,
+        count: sql<number>`count(${forCategories.artCategoryId})::int`,
       })
       .from(artCategoriesTable)
-      .leftJoin(publicArtworks, eq(publicArtworks.artCategoryId, artCategoriesTable.id))
+      .leftJoin(forCategories, eq(forCategories.artCategoryId, artCategoriesTable.id))
       .groupBy(artCategoriesTable.id, artCategoriesTable.name, artCategoriesTable.displayOrder)
       .orderBy(artCategoriesTable.displayOrder),
 
@@ -181,10 +216,10 @@ router.get("/artworks/filters", async (_req, res): Promise<void> => {
       .select({
         id: artStylesTable.id,
         name: artStylesTable.name,
-        count: sql<number>`count(${publicArtworks.artStyleId})::int`,
+        count: sql<number>`count(${forStyles.artStyleId})::int`,
       })
       .from(artStylesTable)
-      .leftJoin(publicArtworks, eq(publicArtworks.artStyleId, artStylesTable.id))
+      .leftJoin(forStyles, eq(forStyles.artStyleId, artStylesTable.id))
       .groupBy(artStylesTable.id, artStylesTable.name, artStylesTable.displayOrder)
       .orderBy(artStylesTable.displayOrder),
 
@@ -192,10 +227,10 @@ router.get("/artworks/filters", async (_req, res): Promise<void> => {
       .select({
         id: sizesTable.id,
         name: sizesTable.code,
-        count: sql<number>`count(${publicArtworks.sizeId})::int`,
+        count: sql<number>`count(${forSizes.sizeId})::int`,
       })
       .from(sizesTable)
-      .leftJoin(publicArtworks, eq(publicArtworks.sizeId, sizesTable.id))
+      .leftJoin(forSizes, eq(forSizes.sizeId, sizesTable.id))
       .groupBy(sizesTable.id, sizesTable.code, sizesTable.displayOrder)
       .orderBy(sizesTable.displayOrder),
 
@@ -207,10 +242,10 @@ router.get("/artworks/filters", async (_req, res): Promise<void> => {
       .select({
         id: baseTypesTable.id,
         name: baseTypesTable.name,
-        count: sql<number>`count(${publicArtworks.baseTypeId})::int`,
+        count: sql<number>`count(${forBaseTypes.baseTypeId})::int`,
       })
       .from(baseTypesTable)
-      .leftJoin(publicArtworks, eq(publicArtworks.baseTypeId, baseTypesTable.id))
+      .leftJoin(forBaseTypes, eq(forBaseTypes.baseTypeId, baseTypesTable.id))
       .groupBy(baseTypesTable.id, baseTypesTable.name, baseTypesTable.displayOrder)
       .orderBy(baseTypesTable.displayOrder),
 
@@ -218,10 +253,10 @@ router.get("/artworks/filters", async (_req, res): Promise<void> => {
       .select({
         id: paintMaterialsTable.id,
         name: paintMaterialsTable.name,
-        count: sql<number>`count(${publicArtworks.paintMaterialId})::int`,
+        count: sql<number>`count(${forMaterials.paintMaterialId})::int`,
       })
       .from(paintMaterialsTable)
-      .leftJoin(publicArtworks, eq(publicArtworks.paintMaterialId, paintMaterialsTable.id))
+      .leftJoin(forMaterials, eq(forMaterials.paintMaterialId, paintMaterialsTable.id))
       .groupBy(paintMaterialsTable.id, paintMaterialsTable.name, paintMaterialsTable.displayOrder)
       .orderBy(paintMaterialsTable.displayOrder),
   ]);
@@ -235,7 +270,7 @@ router.get("/artworks/filters", async (_req, res): Promise<void> => {
   // identical countries collapse into a single filter entry.
   const nationalityByKey = new Map<string, string>();
   for (const row of freeText) {
-    const raw = row.nationality?.trim();
+    const raw = (row.nationality as string | null)?.trim();
     if (!raw) continue;
     const key = raw.toLowerCase();
     if (!nationalityByKey.has(key)) nationalityByKey.set(key, raw);

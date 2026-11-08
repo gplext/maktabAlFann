@@ -27,6 +27,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     links: [
       { href: "/privacy", label: "Privacy Policy" },
       { href: "/terms", label: "Terms & Conditions" },
+      { href: "/sitemap", label: "Sitemap" },
     ],
   },
 ];
@@ -90,6 +91,7 @@ export function SiteFooter() {
           <p className="flex gap-5">
             <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
+            <Link href="/sitemap" className="hover:text-primary transition-colors">Sitemap</Link>
           </p>
         </div>
       </div>

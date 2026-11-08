@@ -68,12 +68,12 @@ export function ArtCarousel({ items, intervalMs = 3000 }: { items: ArtCard[]; in
       </div>
 
       <button onClick={() => press(-1)} aria-label="Previous artworks"
-        className="absolute left-2 top-[38%] -translate-y-1/2 w-10 h-10 bg-background/85 border border-border flex items-center justify-center text-foreground hover:border-secondary transition-colors">
-        <ChevronLeft size={18} />
+        className="absolute left-2 top-[38%] -translate-y-1/2 z-10 w-12 h-12 md:w-14 md:h-14 bg-background/90 border border-border shadow-md flex items-center justify-center text-foreground hover:border-secondary hover:text-primary transition-colors">
+        <ChevronLeft className="w-6 h-6 md:w-7 md:h-7" />
       </button>
       <button onClick={() => press(1)} aria-label="Next artworks"
-        className="absolute right-2 top-[38%] -translate-y-1/2 w-10 h-10 bg-background/85 border border-border flex items-center justify-center text-foreground hover:border-secondary transition-colors">
-        <ChevronRight size={18} />
+        className="absolute right-2 top-[38%] -translate-y-1/2 z-10 w-12 h-12 md:w-14 md:h-14 bg-background/90 border border-border shadow-md flex items-center justify-center text-foreground hover:border-secondary hover:text-primary transition-colors">
+        <ChevronRight className="w-6 h-6 md:w-7 md:h-7" />
       </button>
     </div>
   );

@@ -23,6 +23,7 @@ import staffRouter from "./staff";
 import museumRouter from "./museum";
 import framesRouter from "./frames";
 import carouselsRouter from "./carousels";
+import adminDuplicatesRouter from "./admin-duplicates";
 
 const router: IRouter = Router();
 
@@ -44,6 +45,7 @@ router.use(portfolioRouter);
 router.use(shopRouter);
 router.use(framesRouter);
 router.use(carouselsRouter);
+router.use(adminDuplicatesRouter);
 router.use(lookupRouter);
 router.use(galleryCommissionRouter);
 router.use(supplierRouter);

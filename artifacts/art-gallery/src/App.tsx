@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Redirect, Router as WouterRouter, useLocation, useSearch } from "wouter";
 import { applyPageMeta, SITE_NAME } from "@/lib/seo";
 import { AuthProvider } from "@/lib/auth";
 import { PortalGuard } from "@/lib/portal";
@@ -17,6 +17,7 @@ import Cart from "@/pages/cart";
 import About from "@/pages/about";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import Sitemap from "@/pages/sitemap";
 import SpecialtyArt from "@/pages/specialty-art";
 import Shop from "@/pages/shop";
 const Admin = lazy(() => import("@/pages/admin"));
@@ -44,6 +45,27 @@ function Router() {
   useEffect(() => {
     if (PRIVATE.test(location)) applyPageMeta({ title: SITE_NAME, noindex: true });
   }, [location]);
+  // Every link starts the next page at the top, including links that only change the
+  // query string (e.g. /art → /art?artCategory=Paintings). "#section" links scroll to that section instead.
+  const search = useSearch();
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo(0, 0);
+  }, [location, search]);
+  // A link to the page you're already on (logo, "Home" in the footer) doesn't change the
+  // address, so the effect above can't see it: scroll up on the click itself.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      // (No defaultPrevented check: the site's own <Link>s always prevent the default to route in-app.)
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.origin !== window.location.origin || a.hash) return;
+      if (a.pathname === window.location.pathname && a.search === window.location.search) {
+        window.scrollTo(0, 0);
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
   return (
     <div className="min-h-screen flex flex-col">
       <TopNav />
@@ -62,6 +84,7 @@ function Router() {
           <Route path="/contact">{() => <Redirect to="/about#contact" />}</Route>
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />
+          <Route path="/sitemap" component={Sitemap} />
           <Route path="/admin/login">{() => <Redirect to="/admin" />}</Route>
           <Route path="/admin" component={Admin} />
           <Route path="/staff" component={StaffConsole} />
