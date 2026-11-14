@@ -6,23 +6,23 @@ import { Link } from "wouter";
 import { Loader2 } from "lucide-react";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
-const SPECIALTY_TYPES = ["AI Art", "Sculpture Work", "Handicraft"] as const;
+const SPECIALTY_TYPES = ["Sculpture Work", "Handicraft"] as const;
 type SpecialtyType = (typeof SPECIALTY_TYPES)[number];
 
 const TYPE_DESCRIPTIONS: Record<SpecialtyType, string> = {
-  "AI Art": "Where algorithms meet the ancient. Generative works bridging digital intelligence with classical South Asian aesthetics.",
   "Sculpture Work": "Form given to feeling. Sculptural pieces from masters who shape stone, metal, and clay into cultural memory.",
   "Handicraft": "The patient hand. Artisanal works born of tradition — woven, stitched, cast, and fired across generations.",
 };
 
 export default function SpecialtyArt() {
-  usePageMeta({ title: `Specialty Art — Sculpture, Handicraft & AI Art | ${SITE_NAME}`, description: "Discover specialty works by Pakistani creators: sculpture, traditional handicraft and AI art, each with the story of its making." });
+  usePageMeta({ title: `Specialty Art — Sculpture & Handicraft | ${SITE_NAME}`, description: "Discover specialty works by Pakistani creators: sculpture and traditional handicraft, each with the story of its making." });
   const [activeFilter, setActiveFilter] = useState<SpecialtyType | "All">("All");
 
   const { data: allSpecialty, isLoading } = useListArtworks({ limit: 200 });
 
   const specialtyArtworks = useMemo(
-    () => (allSpecialty ?? []).filter((a) => a.specialtyType != null),
+    // Only the specialty types this page offers (AI Art is no longer shown).
+    () => (allSpecialty ?? []).filter((a) => (SPECIALTY_TYPES as readonly string[]).includes(a.specialtyType ?? "")),
     [allSpecialty]
   );
 
@@ -64,8 +64,8 @@ export default function SpecialtyArt() {
           </motion.h1>
           <div className="w-24 h-[1px] bg-secondary mx-auto mb-8" />
           <p className="text-base text-foreground/60 max-w-2xl mx-auto italic font-serif">
-            Three distinct disciplines — AI-generated visions, sculptural forms, and hand-crafted
-            heritage — each demanding a different kind of attention.
+            Two distinct disciplines — sculptural forms and hand-crafted heritage — each
+            demanding a different kind of attention.
           </p>
         </header>
 

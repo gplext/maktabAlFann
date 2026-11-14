@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, galleryAboutTable, artworksTable, artistsTable } from "@workspace/db";
 import { GetGalleryAboutResponse, GetGalleryStatsResponse } from "@workspace/api-zod";
+import { publicGalleries } from "../lib/galleries";
 import { sql, countDistinct } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -51,6 +52,18 @@ router.get("/gallery/stats", async (_req, res): Promise<void> => {
       featuredCount: artworkStats?.featuredCount ?? 0,
     })
   );
+});
+
+/** Public "Gallery" page: every approved partner gallery that has public artworks. */
+router.get("/galleries/artworks", async (_req, res): Promise<void> => {
+  res.json(await publicGalleries());
+});
+
+/** One gallery's own page: /gallery/<slug>, e.g. /gallery/noor-atelier. */
+router.get("/galleries/:slug", async (req, res): Promise<void> => {
+  const gallery = (await publicGalleries()).find((g) => g.slug === String(req.params.slug).toLowerCase());
+  if (!gallery) return void res.status(404).json({ error: "Gallery not found" });
+  res.json(gallery);
 });
 
 export default router;

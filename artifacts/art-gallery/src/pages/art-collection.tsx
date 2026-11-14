@@ -1,9 +1,10 @@
-import { useListArtworks, useGetArtworkFilters, useSearchArtworks } from "@workspace/api-client-react";
+import { useListArtworks, useGetArtworkFilters } from "@workspace/api-client-react";
 import { useMemo, useState, useEffect } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation, useSearch } from "wouter";
-import { Loader2, Filter, X, Search, Sparkles, ChevronDown, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Loader2, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ArtworkSearchBox, useSuggestions } from "@/components/artwork-search-box";
 import type { Artwork } from "@workspace/api-client-react";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
 
@@ -27,20 +28,21 @@ export default function ArtCollection() {
   const [filters, setFilters] = useState<Filters>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
 
   // 100 artworks per page. One extra is fetched only to know whether a next page exists.
   const PAGE_SIZE = 100;
   const [page, setPage] = useState(1);
-  const filtersKey = JSON.stringify(filters);
+  const filtersKey = JSON.stringify(filters) + activeQuery;
   useEffect(() => { setPage(1); }, [filtersKey]);
-  const { data: pageRows, isLoading } = useListArtworks({ ...filters, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  // The search runs in the database together with the filters, page by page (best match first).
+  const q = activeQuery || undefined;
+  const { data: pageRows, isLoading } = useListArtworks({ ...filters, q, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
   const artworks = useMemo(() => pageRows?.slice(0, PAGE_SIZE), [pageRows]);
   const hasNextPage = (pageRows?.length ?? 0) > PAGE_SIZE;
   const goToPage = (n: number) => { setPage(n); window.scrollTo(0, 0); };
   // Counts follow the filters chosen in the other groups; the previous numbers stay on screen while new ones load.
-  const { data: filterOptions } = useGetArtworkFilters(filters, { query: { placeholderData: keepPreviousData } });
-  const searchMutation = useSearchArtworks();
+  const { data: filterOptions } = useGetArtworkFilters({ ...filters, q }, { query: { placeholderData: keepPreviousData } });
 
   // Re-read the query string whenever it changes, so links within /art (such as
   // "View all →" to /art?artCategory=…) apply their filter, not only on first load.
@@ -48,12 +50,10 @@ export default function ArtCollection() {
   useEffect(() => {
     const params = new URLSearchParams(urlSearch);
 
-    const q = params.get("search");
-    if (q) {
-      setSearchQuery(q);
-      setActiveQuery(q);
-      searchMutation.mutate({ data: { query: q } });
-    }
+    // ?search=… (from the search box, the home page, or a shared link) is the active search.
+    const term = (params.get("search") ?? "").trim();
+    setSearchQuery(term);
+    setActiveQuery(term);
 
     // Deep links such as /art?artCategory=Paintings (used by the "Explore all"
     // links below) need to arrive with the filter already applied. Names are
@@ -96,21 +96,9 @@ export default function ArtCollection() {
       .map(([key, label, list]) => ({ key, label, value: nameOf(list ?? [], filters[key]) }))
       .filter((c): c is { key: keyof Filters; label: string; value: string } => !!c.value);
   }, [filters, filterOptions]);
-  const isAiSearchMode = !!activeQuery;
-
-  const needle = searchQuery.trim().toLowerCase();
-  const instantResults = useMemo<Artwork[]>(() => {
-    if (!needle || !artworks) return [];
-    return artworks.filter((art) =>
-      art.title.toLowerCase().includes(needle) ||
-      (art.artistName ?? "").toLowerCase().includes(needle) ||
-      (art.theme ?? "").toLowerCase().includes(needle) ||
-      (art.artStyle ?? "").toLowerCase().includes(needle) ||
-      (art.artCategory ?? "").toLowerCase().includes(needle)
-    );
-  }, [needle, artworks]);
-
-  const isSearchMode = isAiSearchMode || needle.length > 0;
+  const isSearchMode = !!activeQuery;
+  // "Did you mean…" when a search finds nothing.
+  const { data: noResultHelp } = useSuggestions(activeQuery, isSearchMode && !isLoading && (artworks?.length ?? 0) === 0);
 
   const groups = useMemo<[string, Artwork[]][]>(() => {
     if (!artworks || artworks.length === 0) return [];
@@ -126,18 +114,11 @@ export default function ArtCollection() {
       .slice(0, 6);
   }, [artworks]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    setActiveQuery(searchQuery.trim());
-    searchMutation.mutate({ data: { query: searchQuery.trim() } });
+  /** Runs a search by putting it in the address (?search=…), so it can be shared and Back works. */
+  const runSearch = (term: string) => {
+    navigate(term ? `/art?search=${encodeURIComponent(term)}` : "/art");
   };
-
-  const clearSearch = () => {
-    setActiveQuery("");
-    setSearchQuery("");
-    searchMutation.reset();
-  };
+  const clearSearch = () => runSearch("");
 
   return (
     <div className="bg-background min-h-screen text-foreground pt-28 pb-24">
@@ -166,67 +147,22 @@ export default function ArtCollection() {
           </p>
         </header>
 
-        {/* ── AI Search Bar ── */}
+        {/* ── Search ── */}
         <div className="mb-12 max-w-2xl mx-auto">
-          <form onSubmit={handleSearch} className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles size={13} className="text-secondary" />
-              <span className="text-[10px] uppercase tracking-[0.25em] text-secondary">AI-Powered Search</span>
-            </div>
-            <div className="relative flex">
-              <Search
-                size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for art by feeling, theme, or style…"
-                className="flex-1 pl-11 pr-4 py-4 bg-card border border-border text-sm text-foreground placeholder:text-foreground/35 focus:outline-none focus:border-secondary transition-colors font-serif"
-              />
-              <button
-                type="submit"
-                disabled={searchMutation.isPending}
-                className="px-6 bg-primary text-primary-foreground text-[10px] uppercase tracking-[0.2em] font-display hover:bg-secondary transition-colors disabled:opacity-60 flex items-center gap-2"
-              >
-                {searchMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : "Search"}
-              </button>
-            </div>
-          </form>
-
-          {/* Active search indicator */}
-          <AnimatePresence>
-            {isSearchMode && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="flex items-center justify-between mt-3 px-1"
-              >
-                <p className="text-xs text-foreground/50 italic">
-                  {isAiSearchMode && searchMutation.isPending
-                    ? "Claude is reading the collection…"
-                    : isAiSearchMode && searchMutation.data && searchMutation.data.length > 0
-                    ? `${searchMutation.data.length} ${searchMutation.data.length === 1 ? "work" : "works"} found for "${activeQuery}"`
-                    : `${instantResults.length} ${instantResults.length === 1 ? "work" : "works"} matching "${searchQuery.trim()}"`}
-                </p>
-                <button
-                  onClick={clearSearch}
-                  className="text-xs uppercase tracking-widest text-secondary hover:text-primary transition-colors flex items-center gap-1"
-                >
-                  <X size={11} /> Clear search
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <ArtworkSearchBox
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSubmit={runSearch}
+            onPickStyle={(id) => { setFilters((f) => ({ ...f, artStyleId: id })); setSearchQuery(""); if (activeQuery) clearSearch(); }}
+            onPickCategory={(id) => { setFilters((f) => ({ ...f, artCategoryId: id })); setSearchQuery(""); if (activeQuery) clearSearch(); }}
+          />
         </div>
 
         <div className="flex flex-col lg:flex-row gap-14">
 
-          {/* ── Filter Sidebar — hidden in search mode ── */}
+          {/* ── Filter Sidebar (works together with the search) ── */}
           <AnimatePresence>
-            {!isSearchMode && (
+            {(
               <motion.aside
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -302,11 +238,17 @@ export default function ArtCollection() {
           {/* ── Main content ── */}
           <main className="flex-1 min-w-0">
 
-            {!isSearchMode && activeChips.length > 0 && (
+            {(isSearchMode || activeChips.length > 0) && (
               <div className="mb-10 flex flex-wrap items-center gap-2" aria-live="polite">
                 <span className="text-xs uppercase tracking-widest text-foreground/60 mr-1">
-                  Showing {artworks?.length ?? 0}{hasNextPage ? "+" : ""} {artworks?.length === 1 ? "work" : "works"}:
+                  {isLoading ? "Searching…" : <>Showing {artworks?.length ?? 0}{hasNextPage ? "+" : ""} {artworks?.length === 1 ? "work" : "works"}:</>}
                 </span>
+                {isSearchMode && (
+                  <button onClick={clearSearch} aria-label={`Remove search: ${activeQuery}`}
+                    className="inline-flex items-center gap-2 h-9 pl-3 pr-2 bg-primary text-primary-foreground text-sm hover:bg-primary/85 transition-colors">
+                    <span className="opacity-75">Search:</span> <span className="font-medium">“{activeQuery}”</span> <X size={14} />
+                  </button>
+                )}
                 {activeChips.map((c) => (
                   <button key={c.key} onClick={() => setFilters((f) => ({ ...f, [c.key]: undefined }))}
                     aria-label={`Remove filter ${c.label}: ${c.value}`}
@@ -314,94 +256,69 @@ export default function ArtCollection() {
                     <span className="opacity-75">{c.label}:</span> <span className="font-medium">{c.value}</span> <X size={14} />
                   </button>
                 ))}
-                <button onClick={() => setFilters({})}
+                <button onClick={() => { setFilters({}); if (isSearchMode) clearSearch(); }}
                   className="h-9 px-3 text-xs uppercase tracking-widest text-foreground/70 border border-border hover:border-primary hover:text-primary transition-colors">
                   Clear all
                 </button>
               </div>
             )}
 
-            {/* Search results: flat grid */}
-            {isSearchMode ? (
-              isAiSearchMode && searchMutation.isPending ? (
-                <div className="flex flex-col items-center gap-4 py-32">
-                  <Loader2 className="animate-spin text-primary w-10 h-10" />
-                  <p className="text-sm text-foreground/40 italic">Claude is reading the collection…</p>
-                </div>
-              ) : (() => {
-                  // Decide which results to show: AI results if any, otherwise instant results
-                  const aiResults = isAiSearchMode && searchMutation.data ? searchMutation.data : null;
-                  const displayResults = (aiResults && aiResults.length > 0) ? aiResults : instantResults;
-                  if (displayResults.length > 0) {
-                    return (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                          {displayResults.map((art, i) => (
-                            <motion.div key={art.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03, duration: 0.4 }}>
-                              <SearchResultCard artwork={art} />
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    );
-                  }
-                  return (
-                    <div className="text-center py-32 border border-border bg-card">
-                      <p className="text-xl text-foreground/50 font-display mb-3">No works found for "{searchQuery.trim()}"</p>
-                      <p className="text-sm text-foreground/40 italic mb-6">
-                        Try a different word — "mountain", "portrait", "landscape", or an artist name
-                      </p>
-                      <button onClick={clearSearch} className="text-secondary hover:text-primary transition-colors border-b border-current pb-1 uppercase tracking-widest text-xs">
-                        Browse the full collection
-                      </button>
-                    </div>
-                  );
-                })()
+            {isLoading ? (
+              <div className="flex justify-center py-32">
+                <Loader2 className="animate-spin text-primary w-12 h-12" />
+              </div>
+            ) : (artworks?.length ?? 0) === 0 ? (
+              <div className="text-center py-24 px-6 border border-border bg-card">
+                <p className="text-xl text-foreground/70 font-display mb-3">
+                  {isSearchMode ? <>No works found for “{activeQuery}”{activeChips.length ? " with these filters" : ""}</> : "No works found matching your refinement."}
+                </p>
+                {isSearchMode && noResultHelp?.didYouMean && (
+                  <p className="text-base text-foreground/80 mb-4">
+                    Did you mean{" "}
+                    <button onClick={() => runSearch(noResultHelp.didYouMean!)} className="text-primary underline font-medium">
+                      {noResultHelp.didYouMean}
+                    </button>?
+                  </p>
+                )}
+                {isSearchMode && (
+                  <p className="text-sm text-foreground/60 italic mb-6">
+                    Try another word — a place (“Hunza”), a subject (“mountain”, “cat”), a style (“realism”) or an artist’s name.
+                  </p>
+                )}
+                <button
+                  onClick={() => { setFilters({}); if (isSearchMode) clearSearch(); }}
+                  className="text-secondary hover:text-primary transition-colors border-b border-current pb-1 uppercase tracking-widest text-xs"
+                >
+                  {activeChips.length && isSearchMode ? "Clear search and filters" : isSearchMode ? "Browse the full collection" : "Clear refinements"}
+                </button>
+              </div>
+            ) : isSearchMode ? (
+              /* Search results: best match first */
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
+                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                {artworks!.map((art) => <SearchResultCard key={art.id} artwork={art} />)}
+              </motion.div>
             ) : (
               /* Mosaic groups */
-              isLoading ? (
-                <div className="flex justify-center py-32">
-                  <Loader2 className="animate-spin text-primary w-12 h-12" />
-                </div>
-              ) : groups.length === 0 ? (
-                <div className="text-center py-32 border border-border bg-card">
-                  <p className="text-xl text-foreground/50 font-display">
-                    No works found matching your refinement.
-                  </p>
-                  <button
-                    onClick={() => setFilters({})}
-                    className="mt-6 text-secondary hover:text-primary transition-colors border-b border-current pb-1 uppercase tracking-widest text-sm"
-                  >
-                    Clear Refinements
-                  </button>
-                </div>
-              ) : (
-                <>
-                <div className="space-y-28">
-                  {groups.map(([category, works], idx) => (
-                    <MosaicGroup
-                      key={category}
-                      category={category}
-                      artworks={works}
-                      index={idx}
-                    />
-                  ))}
-                </div>
-                {(page > 1 || hasNextPage) && (
-                  <nav aria-label="Pages" className="mt-20 flex items-center justify-center gap-4">
-                    <button onClick={() => goToPage(page - 1)} disabled={page === 1}
-                      className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                      <ChevronLeft size={16} /> Previous
-                    </button>
-                    <span className="text-xs uppercase tracking-widest text-foreground/60">Page {page}</span>
-                    <button onClick={() => goToPage(page + 1)} disabled={!hasNextPage}
-                      className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                      Next <ChevronRight size={16} />
-                    </button>
-                  </nav>
-                )}
-                </>
-              )
+              <div className="space-y-28">
+                {groups.map(([category, works], idx) => (
+                  <MosaicGroup key={category} category={category} artworks={works} index={idx} />
+                ))}
+              </div>
+            )}
+
+            {!isLoading && (page > 1 || hasNextPage) && (
+              <nav aria-label="Pages" className="mt-20 flex items-center justify-center gap-4">
+                <button onClick={() => goToPage(page - 1)} disabled={page === 1}
+                  className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  <ChevronLeft size={16} /> Previous
+                </button>
+                <span className="text-xs uppercase tracking-widest text-foreground/60">Page {page}</span>
+                <button onClick={() => goToPage(page + 1)} disabled={!hasNextPage}
+                  className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  Next <ChevronRight size={16} />
+                </button>
+              </nav>
             )}
           </main>
         </div>

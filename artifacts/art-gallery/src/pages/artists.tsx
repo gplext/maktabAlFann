@@ -6,7 +6,13 @@ import { Link } from "wouter";
 import { Loader2, Search, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
+import { ArtistImage } from "@/components/artist-image";
 import { useCarousel } from "@/lib/carousel";
+
+/** Artists placed at a fixed position in the full list (1 = first). */
+const PINNED: { name: string; position: number }[] = [
+  { name: "Saad Gul", position: 4 },
+];
 
 export default function Artists() {
   usePageMeta({ title: `Pakistani Artists — Painters & Sculptors | ${SITE_NAME}`, description: "Meet the Pakistani artists of Maktaba Al-Fann: their stories, styles, influences and original works available to buy online." });
@@ -14,6 +20,19 @@ export default function Artists() {
   const { data: artists, isLoading } = useListArtists(filters);
 
   const hasActiveFilters = !!(filters.search || filters.country || filters.style);
+
+  // The full list keeps its usual order, except pinned artists sit at their set position.
+  const ordered = useMemo(() => {
+    if (!artists || hasActiveFilters) return artists;
+    const list = [...artists];
+    for (const pin of PINNED) {
+      const from = list.findIndex((a) => a.name.trim().toLowerCase() === pin.name.toLowerCase());
+      if (from < 0) continue;
+      const [a] = list.splice(from, 1);
+      list.splice(Math.min(pin.position - 1, list.length), 0, a!);
+    }
+    return list;
+  }, [artists, hasActiveFilters]);
 
   const countries = useMemo(
     () => [...new Set((artists ?? []).map((a) => a.country))].sort(),
@@ -118,7 +137,7 @@ export default function Artists() {
               </p>
             )}
             <div className="divide-y divide-border border-t border-b border-border">
-              {artists?.map((artist, idx) => (
+              {ordered?.map((artist, idx) => (
                 <ArtistTileRow key={artist.id} artist={artist} index={idx} />
               ))}
             </div>
@@ -160,7 +179,7 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
     : "";
 
   return (
-    <div className="relative w-full h-[68vh] min-h-[460px] max-h-[680px] overflow-hidden group">
+    <div className="relative w-full h-[calc(100svh-4.5rem)] min-h-[460px] overflow-hidden group">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <motion.div
           key={artist.id}
@@ -177,11 +196,8 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
           className="absolute inset-0"
         >
           <Link href={`/artists/${artist.id}`} className="block w-full h-full">
-            <img loading="lazy" decoding="async"
-              src={artist.photoUrl}
-              alt={artist.name}
-              className="w-full h-full object-cover object-top grayscale-[15%]"
-            />
+            <ArtistImage name={artist.name} photoUrl={artist.photoUrl} coverImageUrl={artist.coverImageUrl} eager
+              className="w-full h-full [container-type:size]" imgClassName="object-cover object-center" />
             <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/55 to-transparent" />
             <div className="absolute inset-0 flex items-end pb-14 px-10 md:px-20">
               <div className="max-w-lg">
@@ -210,23 +226,24 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
           e.preventDefault();
           prev();
         }}
-        className="absolute left-5 top-1/2 -translate-y-1/2 w-11 h-11 bg-background/80 border border-border flex items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-card hover:border-secondary z-10"
+        className="absolute left-5 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 bg-background/85 border border-border shadow-md flex items-center justify-center text-foreground hover:bg-card hover:border-secondary hover:text-primary transition-colors z-10"
         aria-label="Previous artist"
       >
-        <ChevronLeft size={20} />
+        <ChevronLeft className="w-6 h-6 md:w-7 md:h-7" />
       </button>
       <button
         onClick={(e) => {
           e.preventDefault();
           next();
         }}
-        className="absolute right-5 top-1/2 -translate-y-1/2 w-11 h-11 bg-background/80 border border-border flex items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-card hover:border-secondary z-10"
+        className="absolute right-5 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 bg-background/85 border border-border shadow-md flex items-center justify-center text-foreground hover:bg-card hover:border-secondary hover:text-primary transition-colors z-10"
         aria-label="Next artist"
       >
-        <ChevronRight size={20} />
+        <ChevronRight className="w-6 h-6 md:w-7 md:h-7" />
       </button>
 
-      <div className="absolute bottom-5 right-7 flex items-center gap-2 z-10">
+      {/* Markers: close together, each with a 40 px tall click area */}
+      <div className="absolute bottom-3 right-4 md:right-6 flex items-center z-10 bg-background/75 backdrop-blur-sm px-2 rounded-full">
         {artists.map((_, i) => (
           <button
             key={i}
@@ -234,13 +251,14 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
               e.preventDefault();
               go(i, i > current ? 1 : -1);
             }}
-            className={`transition-all duration-300 rounded-full ${
-              i === current
-                ? "w-7 h-1.5 bg-secondary"
-                : "w-1.5 h-1.5 bg-foreground/30 hover:bg-foreground/60"
-            }`}
-            aria-label={`Go to artist ${i + 1}`}
-          />
+            className="group/dot h-10 px-1 flex items-center"
+            aria-label={`Show artist ${i + 1}`}
+            aria-current={i === current}
+          >
+            <span className={`block h-1 rounded-full transition-all duration-300 ${
+              i === current ? "w-10 bg-secondary" : "w-6 bg-foreground/45 group-hover/dot:bg-foreground/75"
+            }`} />
+          </button>
         ))}
       </div>
     </div>
@@ -349,11 +367,9 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
       <div className="md:w-[30%] flex-shrink-0 flex flex-col gap-1 p-1">
         <Link href={`/artists/${artist.id}`} className="block overflow-hidden group/photo relative">
           <div className="aspect-[3/4] relative">
-            <img loading="lazy" decoding="async"
-              src={artist.photoUrl}
-              alt={artist.name}
-              className="w-full h-full object-cover object-top grayscale-[20%] group-hover/photo:grayscale-0 transition-all duration-700 group-hover/photo:scale-[1.02]"
-            />
+            <ArtistImage name={artist.name} photoUrl={artist.photoUrl} coverImageUrl={artist.coverImageUrl}
+              className="w-full h-full [container-type:size]"
+              imgClassName="object-cover object-center grayscale-[20%] group-hover/photo:grayscale-0 transition-all duration-700 group-hover/photo:scale-[1.02]" />
             {/* Permanent gradient info overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent flex flex-col justify-end p-3">
               <div className="space-y-2">

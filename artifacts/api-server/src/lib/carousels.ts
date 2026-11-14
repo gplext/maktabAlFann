@@ -108,7 +108,12 @@ export async function candidates(kind: CarouselKind, q: Query): Promise<Candidat
     return res.rows as Candidate[];
   }
 
-  where.push(sql`ar.is_verified = 'approved' AND ar.photo_url <> '' AND ar.photo_url NOT LIKE '%placehold.co%'`);
+  // An artist's picture: a real portrait, else their best public artwork (stock placeholders don't count).
+  const realPhoto = sql`(ar.photo_url <> '' AND ar.photo_url !~* '(picsum\.photos|placehold\.co|placeholder)')`;
+  const cover = sql`(SELECT w.image_url FROM artworks w WHERE w.artist_id = ar.id AND w.status = 'approved'
+    AND w.image_url <> '' AND w.image_url NOT LIKE '%placehold.co%' ORDER BY w.is_featured DESC, w.id DESC LIMIT 1)`;
+  where.push(sql`ar.is_verified = 'approved' AND (${realPhoto} OR ${cover} IS NOT NULL)
+    AND EXISTS (SELECT 1 FROM artworks w2 WHERE w2.artist_id = ar.id AND w2.status = 'approved')`);
   if (q.mode === "gallery" && q.galleryId) {
     where.push(sql`ar.id IN (SELECT artist_id FROM gallery_artists WHERE gallery_id = ${q.galleryId})`);
   }
@@ -116,7 +121,8 @@ export async function candidates(kind: CarouselKind, q: Query): Promise<Candidat
   if (q.ids) where.push(q.ids.length ? sql`ar.id = ANY(${`{${q.ids.join(",")}}`}::int[])` : sql`false`);
   const order = q.mode === "popularity" ? sql`score DESC, ar.id DESC` : sql`ar.id DESC`;
   const res = await db.execute(sql`
-    SELECT ar.id, ar.name AS title, ar.country AS subtitle, ar.photo_url AS "imageUrl",
+    SELECT ar.id, ar.name AS title, ar.country AS subtitle,
+           CASE WHEN ${realPhoto} THEN ar.photo_url ELSE ${cover} END AS "imageUrl",
            (SELECT count(*) FROM artworks w WHERE w.artist_id = ar.id AND w.status = 'approved')
            + coalesce((SELECT sum(${ARTWORK_SCORE}) FROM artworks a WHERE a.artist_id = ar.id AND a.status = 'approved'), 0)
            AS score

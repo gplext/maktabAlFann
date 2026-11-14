@@ -8,13 +8,14 @@ import { usePageMeta, DEFAULT_TITLE, DEFAULT_DESC } from "@/lib/seo";
 import { useCarousel } from "@/lib/carousel";
 import { ArtCarousel } from "@/components/art-carousel";
 
+// Fallback slides (only if the carousel API can't be reached): the gallery's own pictures, no outside services.
 const STATIC_SLIDES: HeroSlide[] = [
-  { imageUrl: "https://picsum.photos/seed/lahore-fort/1920/1080",  label: "Architecture",    category: "Mughal Grandeur" },
-  { imageUrl: "https://picsum.photos/seed/badshahi/1920/1080",     label: "Sacred Spaces",   category: "Sufi Traditions" },
-  { imageUrl: "https://picsum.photos/seed/karakoram/1920/1080",    label: "Landscape",       category: "Mountain Valleys" },
-  { imageUrl: "https://picsum.photos/seed/indus-valley/1920/1080", label: "Cultural Heritage", category: "Ancient Civilisations" },
-  { imageUrl: "https://picsum.photos/seed/miniature-art/1920/1080",label: "Fine Art",        category: "Miniature Painting" },
-  { imageUrl: "https://picsum.photos/seed/walled-lahore/1920/1080",label: "Living History",  category: "Walled City Stories" },
+  { imageUrl: "/images/artworks/hunza_oil_painting.png",     label: "Landscape",        category: "Mountain Valleys" },
+  { imageUrl: "/images/artworks/rose_farm_classic.png",      label: "Living History",   category: "Rose Fields of Pakistan" },
+  { imageUrl: "/images/artworks/the_road_in_kashmir.png",    label: "Landscape",        category: "The Road in Kashmir" },
+  { imageUrl: "/images/artworks/rain_apricot_flower.png",    label: "Fine Art",         category: "Apricot Blossom" },
+  { imageUrl: "/images/artworks/sunflowers_field.png",       label: "Contemporary",     category: "Fields of Gold" },
+  { imageUrl: "/images/artworks/cycling_for_freedom.jpg",    label: "Contemporary",     category: "Cycling for Freedom" },
 ];
 
 const THEME_LABELS: Record<string, { label: string; category: string }> = {
@@ -134,6 +135,9 @@ export default function Home() {
               <h1 className="font-display text-[clamp(3.5rem,10vw,8.5rem)] leading-[0.92] tracking-tight text-primary lg:text-right">
                 Maktaba<br />Al-Fann
               </h1>
+              <p className="mt-4 md:mt-6 text-sm md:text-lg uppercase tracking-[0.35em] text-secondary lg:text-right">
+                The Art Marketplace
+              </p>
             </motion.div>
           </div>
 
@@ -170,7 +174,7 @@ export default function Home() {
         <HeroCrossfade
           slides={heroSlides}
           intervalMs={3000}
-          className="w-full h-[55vh] md:h-[68vh] lg:h-[78vh]"
+          className="w-full h-[calc(100svh-4.5rem)] min-h-[420px]"
         />
       </motion.section>
 

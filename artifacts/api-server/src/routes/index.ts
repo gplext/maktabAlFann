@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import artworksRouter from "./artworks";
-import artworkSearchRouter from "./artwork-search";
 import artistsRouter from "./artists";
 import cartRouter from "./cart";
 import galleryRouter from "./gallery";
@@ -31,7 +30,6 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(staffRouter);
 router.use(museumRouter);
-router.use(artworkSearchRouter);
 router.use(artworksRouter);
 router.use(artistsRouter);
 router.use(cartRouter);

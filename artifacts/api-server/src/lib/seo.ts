@@ -11,8 +11,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Request } from "express";
 import { db, artworksTable, artistsTable, artCategoriesTable, artStylesTable } from "@workspace/db";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { artworkAvailability } from "./orders";
+import { publicGalleries } from "./galleries";
 
 const SITE_NAME = "Maktaba Al-Fann";
 const DEFAULT_TITLE = "Maktaba Al-Fann — Online Gallery of Pakistani Art";
@@ -25,7 +26,7 @@ const PRIVATE = /^\/(admin|staff|account|cart|museum|portals|collector|artist-po
 
 /** Every route the React app knows (anything else is a 404). */
 const KNOWN = [
-  /^\/$/, /^\/art$/, /^\/art\/\d+$/, /^\/artists$/, /^\/artists\/\d+$/, /^\/specialty$/, /^\/shop$/,
+  /^\/$/, /^\/art$/, /^\/art\/\d+$/, /^\/gallery$/, /^\/gallery\/[a-z0-9-]+$/, /^\/artists$/, /^\/artists\/\d+$/, /^\/specialty$/, /^\/shop$/,
   /^\/about$/, /^\/privacy$/, /^\/terms$/, /^\/sitemap$/, /^\/cart$/, /^\/museum$/, /^\/account$/, /^\/portals$/, /^\/collector$/, /^\/staff$/,
   /^\/admin(\/login)?$/, /^\/artist-portal(\/register|\/submit)?$/, /^\/gallery-portal$/, /^\/sign-(in|up)(\/.*)?$/,
 ];
@@ -37,15 +38,19 @@ const STATIC_PAGES: Record<string, { title: string; description: string }> = {
     description:
       "Browse original paintings, calligraphy, drawings and sculpture by Pakistani artists. Filter by style, medium and size, and order online with delivery in Pakistan and abroad.",
   },
+  "/gallery": {
+    title: "Partner Galleries — Art from Pakistani Galleries | Maktaba Al-Fann",
+    description: "Artworks from Pakistan's partner galleries on Maktaba Al-Fann, shown gallery by gallery.",
+  },
   "/artists": {
     title: "Pakistani Artists — Painters & Sculptors | Maktaba Al-Fann",
     description:
       "Meet the Pakistani artists of Maktaba Al-Fann: their stories, styles, influences and original works available to buy online.",
   },
   "/specialty": {
-    title: "Specialty Art — Sculpture, Handicraft & AI Art | Maktaba Al-Fann",
+    title: "Specialty Art — Sculpture & Handicraft | Maktaba Al-Fann",
     description:
-      "Discover specialty works by Pakistani creators: sculpture, traditional handicraft and AI art, each with the story of its making.",
+      "Discover specialty works by Pakistani creators: sculpture and traditional handicraft, each with the story of its making.",
   },
   "/shop": {
     title: "Frames, Hanging Supports & Art Supplies | Maktaba Al-Fann",
@@ -197,7 +202,8 @@ async function artistMeta(base: string, id: number): Promise<PageMeta | null> {
   const [a] = await db
     .select({ id: artistsTable.id, name: artistsTable.name, country: artistsTable.country, style: artistsTable.style, photoUrl: artistsTable.photoUrl, shortBio: artistsTable.shortBio, websiteUrl: artistsTable.websiteUrl })
     .from(artistsTable)
-    .where(and(eq(artistsTable.id, id), eq(artistsTable.isVerified, "approved")));
+    .where(and(eq(artistsTable.id, id), eq(artistsTable.isVerified, "approved"),
+      sql`EXISTS (SELECT 1 FROM artworks w WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved')`));
   if (!a) return null;
   const url = `${base}/artists/${a.id}`;
   const image = abs(base, a.photoUrl);
@@ -241,6 +247,24 @@ export async function pageMeta(req: Request, pathname: string): Promise<PageMeta
     if (m) return (await artworkMeta(base, Number(m[1]))) ?? notFound();
     m = /^\/artists\/(\d+)$/.exec(p);
     if (m) return (await artistMeta(base, Number(m[1]))) ?? notFound();
+    m = /^\/gallery\/([a-z0-9-]+)$/.exec(p);
+    if (m) {
+      const g = (await publicGalleries()).find((x) => x.slug === m![1]);
+      if (!g) return notFound();
+      const where = [g.city, g.country].filter(Boolean).join(", ");
+      return page(
+        `${g.name}${where ? ` — ${where}` : ""} | Partner Gallery | ${SITE_NAME}`,
+        clip(g.description || `${g.artworks.length} artworks from ${g.name}${where ? `, ${where}` : ""}, on ${SITE_NAME}.`, 160),
+        {
+          image: abs(base, g.artworks[0]?.imageUrl),
+          jsonLd: [
+            { "@context": "https://schema.org", "@type": "ArtGallery", name: g.name, url: `${base}/gallery/${g.slug}`,
+              ...(where ? { address: { "@type": "PostalAddress", addressLocality: g.city, addressCountry: g.country } } : {}) },
+            breadcrumbs(base, [["Home", "/"], ["Gallery", "/gallery"], [g.name, `/gallery/${g.slug}`]]),
+          ],
+        },
+      );
+    }
   } catch {
     // Database trouble must never take the page down: fall back to the default tags.
     return page(DEFAULT_TITLE, DEFAULT_DESC);
@@ -306,11 +330,14 @@ export async function sitemapXml(req: Request): Promise<string> {
   const artists = await db
     .select({ id: artistsTable.id, updatedAt: artistsTable.updatedAt })
     .from(artistsTable)
-    .where(eq(artistsTable.isVerified, "approved"));
+    .where(and(eq(artistsTable.isVerified, "approved"),
+      sql`EXISTS (SELECT 1 FROM artworks w WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved')`));
   const newest = day(artworks[0]?.updatedAt);
   const urls: { loc: string; lastmod?: string; priority: string }[] = [
     { loc: "/", lastmod: newest, priority: "1.0" },
     { loc: "/art", lastmod: newest, priority: "0.9" },
+    { loc: "/gallery", priority: "0.7" },
+    ...(await publicGalleries()).map((g) => ({ loc: `/gallery/${g.slug}`, priority: "0.6" })),
     { loc: "/artists", priority: "0.8" },
     { loc: "/specialty", priority: "0.6" },
     { loc: "/shop", priority: "0.5" },

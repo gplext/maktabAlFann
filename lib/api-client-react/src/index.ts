@@ -27,7 +27,6 @@ import type {
   GetGalleryAboutResponse,
   GetGalleryStatsResponse,
   RemoveFromCartParams,
-  SearchArtworksBody,
   ShopItem as ShopItemType,
   TimelineEvent as TimelineEventType,
 } from "@workspace/api-zod";
@@ -58,7 +57,6 @@ export type {
   AddToCartBody,
   GetArtworkFiltersResponse,
   RemoveFromCartParams,
-  SearchArtworksBody,
 };
 
 export type {
@@ -120,6 +118,8 @@ export type ListArtworksParams = {
 
   /** @deprecated Alias of `artStyle`. */
   artType?: string;
+  /** Search phrase. */
+  q?: string;
 };
 
 export const getListArtworksQueryKey = (params?: ListArtworksParams) =>
@@ -151,6 +151,7 @@ export function useGetFeaturedArtworks(
 
 /** The filters already chosen; each group's counts then reflect the other groups. */
 export type ArtworkFiltersParams = {
+  q?: string;
   artCategoryId?: number;
   artStyleId?: number;
   sizeId?: number;
@@ -184,15 +185,6 @@ export function useGetArtwork(
     () => apiGet<ArtworkDetail>(`/artworks/${id}`),
     options,
   );
-}
-
-export function useSearchArtworks(
-  options?: MutationHookOptions<Artwork[], { data: SearchArtworksBody }>,
-): UseMutationResult<Artwork[], Error, { data: SearchArtworksBody }> {
-  return useMutation<Artwork[], Error, { data: SearchArtworksBody }>({
-    mutationFn: ({ data }) => apiPost<Artwork[]>("/artworks/search", data),
-    ...options?.mutation,
-  });
 }
 
 /* -- artists -------------------------------------------------------------- */

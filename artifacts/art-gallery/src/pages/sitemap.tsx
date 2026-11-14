@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useListArtworks, useListArtists } from "@workspace/api-client-react";
@@ -10,6 +11,7 @@ const SECTIONS: { title: string; links: { href: string; label: string }[] }[] = 
     links: [
       { href: "/", label: "Home" },
       { href: "/art", label: "Artworks" },
+      { href: "/gallery", label: "Gallery (partner galleries)" },
       { href: "/artists", label: "Artists" },
       { href: "/specialty", label: "Specialty Art" },
       { href: "/shop", label: "Frames & Supplies" },
@@ -54,6 +56,10 @@ export default function Sitemap() {
     description: "Every page of Maktaba Al-Fann in one place: the gallery, every Pakistani artist and every artwork in the collection.",
   });
   const { data: artists, isLoading: loadingArtists } = useListArtists();
+  const { data: galleries } = useQuery<{ id: number; slug: string; name: string; city: string }[]>({
+    queryKey: ["/galleries/artworks"],
+    queryFn: async () => { const r = await fetch("/api/galleries/artworks"); return r.ok ? r.json() : []; },
+  });
   const { data: artworks, isLoading: loadingArtworks } = useListArtworks({ limit: 1000 });
 
   const sortedArtists = useMemo(
@@ -91,6 +97,22 @@ export default function Sitemap() {
             </nav>
           ))}
         </section>
+
+        {!!galleries?.length && (
+          <section className="border-t border-border pt-14 mb-20">
+            <h2 className="font-display text-3xl text-primary mb-8">
+              Partner galleries <span className="text-foreground/40 text-lg">({galleries.length})</span>
+            </h2>
+            <ul className="columns-2 md:columns-3 lg:columns-4 gap-8 space-y-2.5">
+              {galleries.map((g) => (
+                <li key={g.id} className="break-inside-avoid">
+                  <Link href={`/gallery/${g.slug}`} className={linkCls}>{g.name}</Link>
+                  {g.city && <span className="text-xs text-foreground/40"> — {g.city}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="border-t border-border pt-14 mb-20">
           <h2 className="font-display text-3xl text-primary mb-8">

@@ -7,6 +7,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     title: "Explore",
     links: [
       { href: "/art", label: "Artworks" },
+      { href: "/gallery", label: "Partner Galleries" },
       { href: "/artists", label: "Artists" },
       { href: "/specialty", label: "Specialty Art" },
       { href: "/shop", label: "Frames & Supplies" },
@@ -42,6 +43,7 @@ export function SiteFooter() {
         <div>
           <Link href="/" className="inline-flex flex-col leading-none">
             <span className="font-display text-lg tracking-[0.15em] uppercase text-primary whitespace-nowrap">Maktaba Al-Fann</span>
+            <span className="text-[10px] tracking-[0.2em] uppercase text-foreground/60 mt-1">The Art Marketplace</span>
             <span className="text-secondary text-lg mt-1 self-start" lang="ur">مکتبۃ الفن</span>
           </Link>
           <p className="mt-5 text-sm text-foreground/60 leading-relaxed max-w-xs">

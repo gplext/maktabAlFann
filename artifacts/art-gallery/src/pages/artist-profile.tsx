@@ -2,6 +2,7 @@ import { useGetArtist, useGetArtistPortfolio, getGetArtistQueryKey, getGetArtist
 import { useParams, Link } from "wouter";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
+import { ArtistImage, realPortrait } from "@/components/artist-image";
 import { usePageMeta, clip, SITE_NAME } from "@/lib/seo";
 
 type AdminPortfolioItem = { url: string; label?: string };
@@ -18,7 +19,7 @@ export default function ArtistProfile() {
   usePageMeta(artist ? {
     title: clip(`${artist.name} — ${artist.country === "Pakistan" || !artist.country ? "Pakistani" : artist.country} Artist | ${SITE_NAME}`, 70),
     description: clip(((artist.shortBio ?? "").trim().length >= 70 ? artist.shortBio : `${(artist.shortBio ?? "").trim() ? (artist.shortBio ?? "").trim().replace(/[.\s]*$/, ". ") : ""}${artist.name} is an artist from ${artist.country || "Pakistan"}. See their story and original works at ${SITE_NAME}.`) ?? "", 160),
-    image: artist.photoUrl,
+    image: realPortrait(artist.photoUrl) ?? artist.coverImageUrl ?? undefined,
   } : null);
 
   if (isLoading) {
@@ -44,11 +45,8 @@ export default function ArtistProfile() {
           <div className="lg:col-span-5">
             <div className="sticky top-32">
               <div className="relative p-4 bg-card border border-border">
-                <img loading="lazy" decoding="async" 
-                  src={artist.photoUrl} 
-                  alt={artist.name} 
-                  className="w-full aspect-[3/4] object-cover grayscale-[30%]"
-                />
+                <ArtistImage name={artist.name} photoUrl={artist.photoUrl} coverImageUrl={artist.coverImageUrl} eager
+                  className="w-full aspect-[3/4] [container-type:inline-size]" imgClassName="object-cover" />
               </div>
               <div className="mt-12 space-y-6">
                 <h1 className="text-5xl font-display text-primary">{artist.name}</h1>

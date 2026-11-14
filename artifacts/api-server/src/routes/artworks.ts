@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { artworkAvailability } from "../lib/orders";
-import { eq, and, inArray, sql, type SQL } from "drizzle-orm";
+import { eq, and, inArray, sql, desc, asc, type SQL } from "drizzle-orm";
 import {
   db,
   artworksTable,
@@ -26,6 +26,7 @@ import {
   GetArtworkFiltersResponse,
 } from "@workspace/api-zod";
 import { formatZodError } from "../lib/validation";
+import { artworkSearch, didYouMean, searchWords } from "../lib/search";
 
 const router: IRouter = Router();
 
@@ -97,10 +98,12 @@ router.get("/artworks", async (req, res): Promise<void> => {
   const {
     nationality, theme, artistId, featured, specialtyType, limit, offset,
     artCategoryId, artCategory, artStyleId, artStyle, sizeId, size, artType,
-    baseTypeId, paintMaterialId,
+    baseTypeId, paintMaterialId, q,
   } = parsed.data;
 
   const conditions: SQL[] = [PUBLIC_ONLY!];
+  const search = await artworkSearch(q);
+  if (search) conditions.push(search.where);
 
   if (theme) conditions.push(eq(artworksTable.theme, theme));
   if (artistId != null) conditions.push(eq(artworksTable.artistId, artistId));
@@ -125,12 +128,47 @@ router.get("/artworks", async (req, res): Promise<void> => {
 
   const rows = await cardQuery()
     .where(and(...conditions))
-    .orderBy(artworksTable.id) // a fixed order, so pages (limit/offset) never repeat or skip a work
+    // Best match first when searching; then a fixed order, so pages (limit/offset) never repeat or skip a work.
+    .orderBy(...(search ? [desc(search.rank), asc(artworksTable.id)] : [asc(artworksTable.id)]))
     .limit(limit ?? 100)
     .offset(offset ?? 0);
 
   const held = await artworkAvailability(rows.map((r) => r.id));
   res.json(ListArtworksResponse.parse(rows.map((r) => ({ ...withLegacyAlias(r), availability: held.get(r.id) ?? "available" }))));
+});
+
+/**
+ * Suggestions while typing in the /art search box: matching artworks, artists,
+ * styles and art types — plus "Did you mean…" when no artwork matches.
+ */
+router.get("/artworks/suggest", async (req, res): Promise<void> => {
+  const q = String(req.query.q ?? "").slice(0, 100);
+  const words = searchWords(q);
+  if (words.length === 0) return void res.json({ artworks: [], artists: [], styles: [], categories: [], didYouMean: null });
+  const search = (await artworkSearch(q))!;
+  const like = `%${q.trim().replace(/[%_\\]/g, "\\$&")}%`;
+
+  const [artworks, artists, styles, categories] = await Promise.all([
+    cardQuery().where(and(PUBLIC_ONLY, search.where)).orderBy(desc(search.rank), asc(artworksTable.id)).limit(6),
+    db.select({ id: artistsTable.id, name: artistsTable.name, photoUrl: artistsTable.photoUrl })
+      .from(artistsTable)
+      .where(and(eq(artistsTable.isVerified, "approved"), sql`${artistsTable.name} ILIKE ${like}`,
+        sql`EXISTS (SELECT 1 FROM artworks w WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved')`))
+      .orderBy(artistsTable.name).limit(4),
+    db.select({ id: artStylesTable.id, name: artStylesTable.name }).from(artStylesTable)
+      .where(sql`${artStylesTable.name} ILIKE ${like}`).limit(4),
+    db.select({ id: artCategoriesTable.id, name: artCategoriesTable.name }).from(artCategoriesTable)
+      .where(sql`${artCategoriesTable.name} ILIKE ${like}`).limit(4),
+  ]);
+
+  res.set("Cache-Control", "no-cache");
+  res.json({
+    artworks: artworks.map((a) => ({ id: a.id, title: a.title, artistName: a.artistName, imageUrl: a.thumbnailUrl || a.imageUrl, artStyle: a.artStyle })),
+    artists,
+    styles,
+    categories,
+    didYouMean: artworks.length === 0 ? await didYouMean(q, PUBLIC_ONLY!) : null,
+  });
 });
 
 router.get("/artworks/featured", async (_req, res): Promise<void> => {
@@ -160,6 +198,7 @@ router.get("/artworks/featured", async (_req, res): Promise<void> => {
  */
 type Facet = "artCategoryId" | "artStyleId" | "sizeId" | "baseTypeId" | "paintMaterialId";
 router.get("/artworks/filters", async (req, res): Promise<void> => {
+  const search = await artworkSearch(typeof req.query.q === "string" ? req.query.q : undefined);
   const chosen: Partial<Record<Facet, number>> = {};
   for (const k of ["artCategoryId", "artStyleId", "sizeId", "baseTypeId", "paintMaterialId"] as Facet[]) {
     const n = Number(req.query[k]);
@@ -175,6 +214,7 @@ router.get("/artworks/filters", async (req, res): Promise<void> => {
   /** Public artworks narrowed by every chosen filter except `except`. */
   const scoped = (except: Facet | null) => {
     const conds: SQL[] = [PUBLIC_ONLY!];
+    if (search) conds.push(search.where);
     for (const [k, v] of Object.entries(chosen) as [Facet, number][]) {
       if (k !== except) conds.push(eq(facetColumn[k], v));
     }
@@ -190,6 +230,8 @@ router.get("/artworks/filters", async (req, res): Promise<void> => {
       })
       .from(artworksTable)
       .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
+      .innerJoin(artCategoriesTable, eq(artworksTable.artCategoryId, artCategoriesTable.id))
+      .leftJoin(artStylesTable, eq(artworksTable.artStyleId, artStylesTable.id))
       .where(and(...conds))
       .as(`public_artworks_${except ?? "all"}`);
   };

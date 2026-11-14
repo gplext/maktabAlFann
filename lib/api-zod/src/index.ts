@@ -124,7 +124,6 @@ export const ArtworkSummary = z.object({
   thumbnailUrl: z.string(),
   shortDescription: z.string(),
   isFeatured: z.boolean(),
-  /** /artworks/search does not select this — optional so one schema serves both. */
   specialtyType: z.string().nullish(),
   displayPrice: OptionalMoney,
 });
@@ -151,6 +150,9 @@ export const ListArtworksQueryParams = z.object({
 
   /** @deprecated Alias of `artStyle`. */
   artType: OptionalText,
+
+  /** Search phrase (title, subject, artist, style, art type, medium, description). */
+  q: OptionalText,
 });
 export type ListArtworksQueryParams = z.infer<typeof ListArtworksQueryParams>;
 
@@ -255,8 +257,6 @@ export const GetArtworkResponse = z.object({
 });
 export type GetArtworkResponse = z.infer<typeof GetArtworkResponse>;
 
-export const SearchArtworksBody = z.object({ query: z.string().min(1) });
-export type SearchArtworksBody = z.infer<typeof SearchArtworksBody>;
 
 /* ── artists ────────────────────────────────────────────────────────────── */
 
@@ -269,6 +269,8 @@ export const ArtistSummary = z.object({
   gender: z.string(),
   style: z.string(),
   photoUrl: z.string(),
+  /** The artist's best public artwork picture (used when there is no real portrait). */
+  coverImageUrl: z.string().nullish(),
   shortBio: z.string(),
   saying: z.string(),
   sayingAuthor: z.string(),

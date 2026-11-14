@@ -57,7 +57,7 @@ export default function Portals() {
         </div>
 
         <p className="text-[10px] uppercase tracking-[0.35em] text-secondary mb-4 font-display">
-          Maktaba Al-Fann
+          Maktaba Al-Fann · The Art Marketplace
         </p>
         <h1 className="font-display text-5xl md:text-6xl text-primary mb-5 leading-tight">
           Portals

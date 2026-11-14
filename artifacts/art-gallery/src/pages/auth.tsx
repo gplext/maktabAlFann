@@ -27,7 +27,8 @@ function Shell({ subtitle, children }: { subtitle: string; children: ReactNode }
     <div className="flex min-h-[80dvh] items-center justify-center bg-background px-4 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="font-display text-3xl text-primary tracking-widest mb-2">Maktaba Al-Fann</h1>
+          <h1 className="font-display text-3xl text-primary tracking-widest mb-1">Maktaba Al-Fann</h1>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-foreground/60 mb-3">The Art Marketplace</p>
           <div className="w-16 h-px bg-secondary mx-auto mb-4" />
           <p className="text-foreground/60 italic text-sm">{subtitle}</p>
         </div>

@@ -16,6 +16,17 @@ import {
 } from "@workspace/api-zod";
 import { formatZodError } from "../lib/validation";
 
+/** The artist's best public artwork picture, shown when there is no real portrait. */
+const COVER_IMAGE = sql<string | null>`(
+  SELECT w.image_url FROM artworks w
+  WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved'
+    AND w.image_url <> '' AND w.image_url NOT LIKE '%placehold.co%'
+  ORDER BY w.is_featured DESC, w.id DESC LIMIT 1
+)`;
+
+/** Artists are only shown publicly once they have at least one approved artwork. */
+const HAS_PUBLIC_WORK = sql`EXISTS (SELECT 1 FROM artworks w WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved')`;
+
 const router: IRouter = Router();
 
 router.get("/artists", async (req, res): Promise<void> => {
@@ -28,7 +39,7 @@ router.get("/artists", async (req, res): Promise<void> => {
   const { country, gender, style, minAge, maxAge, search } = parsed.data;
   const currentYear = new Date().getFullYear();
 
-  const conditions: SQL[] = [eq(artistsTable.isVerified, "approved")];
+  const conditions: SQL[] = [eq(artistsTable.isVerified, "approved"), HAS_PUBLIC_WORK];
   if (country) conditions.push(eq(artistsTable.country, country));
   if (gender) conditions.push(eq(artistsTable.gender, gender));
   if (style) conditions.push(eq(artistsTable.style, style));
@@ -39,6 +50,7 @@ router.get("/artists", async (req, res): Promise<void> => {
   const countSubquery = db
     .select({ artistId: artworksTable.artistId, count: sql<number>`count(*)::int`.as("count") })
     .from(artworksTable)
+    .where(eq(artworksTable.status, "approved"))
     .groupBy(artworksTable.artistId)
     .as("artwork_counts");
 
@@ -52,6 +64,7 @@ router.get("/artists", async (req, res): Promise<void> => {
       gender: artistsTable.gender,
       style: artistsTable.style,
       photoUrl: artistsTable.photoUrl,
+      coverImageUrl: COVER_IMAGE,
       shortBio: artistsTable.shortBio,
       saying: artistsTable.saying,
       sayingAuthor: artistsTable.sayingAuthor,
@@ -75,6 +88,7 @@ router.get("/artists/:id", async (req, res): Promise<void> => {
   const countSubquery = db
     .select({ artistId: artworksTable.artistId, count: sql<number>`count(*)::int`.as("count") })
     .from(artworksTable)
+    .where(eq(artworksTable.status, "approved"))
     .groupBy(artworksTable.artistId)
     .as("artwork_counts");
 
@@ -88,6 +102,7 @@ router.get("/artists/:id", async (req, res): Promise<void> => {
       gender: artistsTable.gender,
       style: artistsTable.style,
       photoUrl: artistsTable.photoUrl,
+      coverImageUrl: COVER_IMAGE,
       shortBio: artistsTable.shortBio,
       saying: artistsTable.saying,
       sayingAuthor: artistsTable.sayingAuthor,
@@ -99,7 +114,7 @@ router.get("/artists/:id", async (req, res): Promise<void> => {
     })
     .from(artistsTable)
     .leftJoin(countSubquery, eq(artistsTable.id, countSubquery.artistId))
-    .where(and(eq(artistsTable.id, params.data.id), eq(artistsTable.isVerified, "approved")));
+    .where(and(eq(artistsTable.id, params.data.id), eq(artistsTable.isVerified, "approved"), HAS_PUBLIC_WORK));
 
   if (artistRows.length === 0) {
     res.status(404).json({ error: "Artist not found" });

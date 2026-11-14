@@ -18,6 +18,8 @@ import About from "@/pages/about";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
 import Sitemap from "@/pages/sitemap";
+import Galleries from "@/pages/galleries";
+import GalleryDetail from "@/pages/gallery-detail";
 import SpecialtyArt from "@/pages/specialty-art";
 import Shop from "@/pages/shop";
 const Admin = lazy(() => import("@/pages/admin"));
@@ -75,6 +77,8 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/art" component={ArtCollection} />
           <Route path="/art/:id" component={ArtworkDetail} />
+          <Route path="/gallery" component={Galleries} />
+          <Route path="/gallery/:slug" component={GalleryDetail} />
           <Route path="/artists" component={Artists} />
           <Route path="/artists/:id" component={ArtistProfile} />
           <Route path="/specialty" component={SpecialtyArt} />

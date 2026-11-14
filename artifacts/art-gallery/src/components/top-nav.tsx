@@ -7,8 +7,9 @@ import { myPortal, PORTALS } from "@/lib/portal";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV_LINKS = [
-  { href: "/", label: "Gallery" },
+  { href: "/", label: "Home" },
   { href: "/art", label: "Artworks" },
+  { href: "/gallery", label: "Gallery" },
   { href: "/specialty", label: "Specialty Art" },
   { href: "/artists", label: "Artists" },
   { href: "/shop", label: "Shop" },
@@ -59,6 +60,9 @@ export function TopNav() {
           <Link href="/" className="flex flex-col items-start leading-none group">
             <span className="font-display text-[11px] tracking-[0.22em] uppercase text-primary group-hover:text-secondary transition-colors">
               Maktaba Al-Fann
+            </span>
+            <span className="text-[9px] tracking-[0.18em] uppercase text-foreground/60 mt-0.5">
+              The Art Marketplace
             </span>
             <span
               className="text-[17px] text-secondary/80 group-hover:text-secondary transition-colors"
@@ -123,6 +127,9 @@ export function TopNav() {
               <Link href="/" onClick={close} className="flex flex-col items-start leading-none">
                 <span className="font-display text-[11px] tracking-[0.22em] uppercase text-primary">
                   Maktaba Al-Fann
+                </span>
+                <span className="text-[9px] tracking-[0.18em] uppercase text-foreground/60 mt-0.5">
+                  The Art Marketplace
                 </span>
                 <span
                   className="text-[17px] text-secondary/80"

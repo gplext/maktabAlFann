@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -14,8 +14,12 @@ interface Props {
   className?: string;
 }
 
-export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Props) {
+export function HeroCrossfade({ slides: allSlides, intervalMs = 3000, className = "" }: Props) {
+  // Pictures that fail to load are dropped from the rotation, so the carousel never shows an empty frame.
+  const [broken, setBroken] = useState<Set<string>>(() => new Set());
+  const slides = useMemo(() => allSlides.filter((s) => !broken.has(s.imageUrl)), [allSlides, broken]);
   const [current, setCurrent] = useState(0);
+  useEffect(() => { if (current >= slides.length && slides.length > 0) setCurrent(0); }, [current, slides.length]);
   // Bumped when a visitor picks a slide, so the 3-second timer restarts from that slide.
   const [manual, setManual] = useState(0);
 
@@ -35,13 +39,14 @@ export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Pro
     setManual((m) => m + 1);
   };
 
-  // Preload every slide so changing slides never waits on a download.
+  // Preload every slide so changing slides never waits on a download; note any that fail.
   useEffect(() => {
-    slides.forEach((s) => {
+    allSlides.forEach((s) => {
       const img = new Image();
+      img.onerror = () => setBroken((b) => (b.has(s.imageUrl) ? b : new Set(b).add(s.imageUrl)));
       img.src = s.imageUrl;
     });
-  }, [slides]);
+  }, [allSlides]);
 
   if (slides.length === 0) return <div className={className} />;
 
@@ -62,6 +67,7 @@ export function HeroCrossfade({ slides, intervalMs = 3000, className = "" }: Pro
         >
           <img
             src={active.imageUrl}
+            onError={() => setBroken((b) => new Set(b).add(active.imageUrl))}
             alt={`${active.category} — Pakistani art at Maktaba Al-Fann`}
             className="w-full h-full object-cover"
             loading="eager"
