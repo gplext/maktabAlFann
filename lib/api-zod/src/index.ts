@@ -123,6 +123,8 @@ export const ArtworkSummary = z.object({
   imageUrl: z.string(),
   thumbnailUrl: z.string(),
   shortDescription: z.string(),
+  /** The artwork's long description (only filled where a teaser is shown, e.g. featured on the home page). */
+  story: z.string().nullish(),
   isFeatured: z.boolean(),
   specialtyType: z.string().nullish(),
   displayPrice: OptionalMoney,
@@ -153,6 +155,8 @@ export const ListArtworksQueryParams = z.object({
 
   /** Search phrase (title, subject, artist, style, art type, medium, description). */
   q: OptionalText,
+  /** Order: recommended (default; best match first when searching), newest, price_asc, price_desc. */
+  sort: z.enum(["recommended", "newest", "price_asc", "price_desc"]).optional(),
 });
 export type ListArtworksQueryParams = z.infer<typeof ListArtworksQueryParams>;
 
@@ -268,6 +272,8 @@ export const ArtistSummary = z.object({
   age: z.coerce.number().int(),
   gender: z.string(),
   style: z.string(),
+  /** master | emerging | student */
+  level: z.string().nullish(),
   photoUrl: z.string(),
   /** The artist's best public artwork picture (used when there is no real portrait). */
   coverImageUrl: z.string().nullish(),
@@ -281,7 +287,9 @@ export type ArtistSummary = z.infer<typeof ArtistSummary>;
 export const ListArtistsQueryParams = z.object({
   country: OptionalText,
   gender: OptionalText,
+  /** Artists with at least one public artwork in this style (art_styles name). */
   style: OptionalText,
+  level: z.enum(["master", "emerging", "student"]).optional(),
   search: OptionalText,
   minAge: OptionalInt,
   maxAge: OptionalInt,

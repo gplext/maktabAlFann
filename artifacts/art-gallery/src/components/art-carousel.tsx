@@ -8,7 +8,14 @@ export type ArtCard = { id: number; title: string; artistName: string; imageUrl:
  * A row of artwork cards that slides by itself (one card every few seconds,
  * looping back to the start) and can be moved with the arrows or by swiping.
  */
-export function ArtCarousel({ items, intervalMs = 3000 }: { items: ArtCard[]; intervalMs?: number }) {
+export function ArtCarousel({ items, intervalMs = 3000, endless = false, speed = 45 }: {
+  items: ArtCard[];
+  intervalMs?: number;
+  /** Banner mode: glides continuously (no stops) and loops forever — the cards repeat, so it never rewinds. */
+  endless?: boolean;
+  /** Banner speed in pixels per second. */
+  speed?: number;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -17,12 +24,21 @@ export function ArtCarousel({ items, intervalMs = 3000 }: { items: ArtCard[]; in
     if (!el) return;
     const card = el.firstElementChild as HTMLElement | null;
     const by = card ? card.getBoundingClientRect().width + 16 : el.clientWidth / 2;
+    if (endless) {
+      // The list is rendered twice; past the first copy, jump back by one copy (looks identical) and keep going.
+      const copy = el.children[items.length] as HTMLElement | undefined;
+      const half = copy ? copy.offsetLeft - (el.firstElementChild as HTMLElement).offsetLeft : el.scrollWidth / 2;
+      if (dir === 1 && el.scrollLeft >= half - 4) el.scrollTo({ left: el.scrollLeft - half, behavior: "instant" });
+      if (dir === -1 && el.scrollLeft <= 4) el.scrollTo({ left: el.scrollLeft + half, behavior: "instant" });
+      requestAnimationFrame(() => el.scrollBy({ left: dir * by, behavior: "smooth" }));
+      return;
+    }
     const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
     const atStart = el.scrollLeft <= 4;
     if (dir === 1 && atEnd) el.scrollTo({ left: 0, behavior: "smooth" });
     else if (dir === -1 && atStart) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
     else el.scrollBy({ left: dir * by, behavior: "smooth" });
-  }, []);
+  }, [endless, items.length]);
 
   const start = useCallback(() => {
     if (timer.current) clearInterval(timer.current);
@@ -31,12 +47,48 @@ export function ArtCarousel({ items, intervalMs = 3000 }: { items: ArtCard[]; in
   }, [items.length, intervalMs, step]);
 
   useEffect(() => {
+    if (endless) return; // banner mode moves itself (below)
     start();
     return () => { if (timer.current) clearInterval(timer.current); };
-  }, [start]);
+  }, [start, endless]);
+
+  // Banner mode: move a little every frame, at a steady speed, and wrap round seamlessly.
+  const pos = useRef(0);
+  useEffect(() => {
+    if (!endless || items.length < 2) return;
+    const el = track.current;
+    if (!el) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(now - last, 100); // a hidden tab doesn't cause a big jump
+      last = now;
+      const copy = el.children[items.length] as HTMLElement | undefined;
+      const half = copy ? copy.offsetLeft - (el.firstElementChild as HTMLElement).offsetLeft : el.scrollWidth / 2;
+      if (half > 0) {
+        if (Math.abs(el.scrollLeft - pos.current) > 2) pos.current = el.scrollLeft; // an arrow press moved it
+        pos.current += (speed * dt) / 1000;
+        if (pos.current >= half) pos.current -= half;
+        if (pos.current < 0) pos.current += half;
+        el.scrollLeft = pos.current;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [endless, items.length, speed]);
 
   // An arrow press restarts the timer so the row doesn't jump right after it.
-  const press = (dir: 1 | -1) => { step(dir); start(); };
+  const press = (dir: 1 | -1) => {
+    if (endless) {
+      // Banner mode: hop one card instantly; the glide carries on from there.
+      const el = track.current;
+      const card = el?.firstElementChild as HTMLElement | null;
+      if (el && card) { pos.current += dir * (card.getBoundingClientRect().width + 16); el.scrollLeft = pos.current; }
+      return;
+    }
+    step(dir); start();
+  };
 
   if (items.length === 0) return null;
 
@@ -44,10 +96,10 @@ export function ArtCarousel({ items, intervalMs = 3000 }: { items: ArtCard[]; in
     <div className="relative group/carousel">
       <div
         ref={track}
-        className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={`flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${endless ? "" : "snap-x snap-mandatory scroll-smooth"}`}
       >
-        {items.map((artwork) => (
-          <Link key={artwork.id} href={`/art/${artwork.id}`}
+        {(endless ? [...items, ...items] : items).map((artwork, i) => (
+          <Link key={`${artwork.id}-${i}`} href={`/art/${artwork.id}`}
             className="block group snap-start shrink-0 w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[18.8%]">
             <div className="aspect-[2/3] overflow-hidden bg-background border border-border relative">
               <img loading="lazy" decoding="async" src={artwork.imageUrl} alt={artwork.title}

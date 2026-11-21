@@ -25,3 +25,7 @@ maktaba-alfann-db.sql
 # local reports and one-time database fixes (already applied)
 *.docx
 deploy/one-off/
+
+# reports written when checking / importing seed data
+seed/**/validation-report.*
+seed/**/import-report.txt

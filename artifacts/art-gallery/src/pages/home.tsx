@@ -2,7 +2,9 @@ import { useGetFeaturedArtworks, useGetGalleryStats, useListArtworks } from "@wo
 import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import { useMemo, useState } from "react";
-import { Loader2, Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArtworkSearchBox } from "@/components/artwork-search-box";
 import { HeroCrossfade, type HeroSlide } from "@/components/hero-crossfade";
 import { usePageMeta, DEFAULT_TITLE, DEFAULT_DESC } from "@/lib/seo";
 import { useCarousel } from "@/lib/carousel";
@@ -34,16 +36,18 @@ const THEME_LABELS: Record<string, { label: string; category: string }> = {
   History:             { label: "Living History",   category: "Historical Narratives" },
 };
 
-const MOOD_CHIPS = [
-  "Misty Mountains",
-  "Busy Bazaars",
-  "Calligraphic Calm",
-  "Portraits of Resilience",
-  "Geometric Wonder",
-  "Coastal Light",
-  "Desert Reverie",
-  "Ancient Mughal",
-];
+/** Subjects, places and styles that currently match artworks (see /api/artworks/discover-chips). */
+function useDiscoverChips() {
+  return useQuery<{ label: string; q: string; count: number }[]>({
+    queryKey: ["/artworks/discover-chips"],
+    queryFn: async () => {
+      const res = await fetch("/api/artworks/discover-chips");
+      if (!res.ok) throw new Error("chips failed");
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+  });
+}
 
 export default function Home() {
   usePageMeta({ title: DEFAULT_TITLE, description: DEFAULT_DESC });
@@ -52,6 +56,7 @@ export default function Home() {
   const { data: carousel, isLoading: loadingCarousel, isError: carouselFailed } = useCarousel("home-hero");
   const { data: stats, isLoading: loadingStats } = useGetGalleryStats();
   const [searchQuery, setSearchQuery] = useState("");
+  const { data: chips } = useDiscoverChips();
   const [, navigate] = useLocation();
 
   const heroSlides = useMemo<HeroSlide[]>(() => {
@@ -271,8 +276,8 @@ export default function Home() {
                         </Link>
                       </h3>
                       <p className="text-sm italic text-foreground/50 mb-6">by {artwork.artistName}</p>
-                      <p className="text-sm text-foreground/65 leading-relaxed mb-10 max-w-sm">
-                        {artwork.shortDescription ||
+                      <p className="text-sm text-foreground/65 leading-relaxed mb-10 max-w-sm line-clamp-3">
+                        {artwork.story || artwork.shortDescription ||
                           "A profound piece exploring the depths of cultural heritage and artistic expression."}
                       </p>
                       <Link
@@ -308,43 +313,29 @@ export default function Home() {
               Find Art That Speaks to You
             </h2>
             <p className="text-sm text-foreground/50 italic mb-10">
-              Describe a feeling, a place, or a memory — we'll find the work for you.
+              Search by subject, place, artist, style or medium — try “Karachi”, “horses” or “calligraphy”.
             </p>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSearch(searchQuery);
-              }}
-              className="relative mb-8"
-            >
-              <Search
-                size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none"
-              />
-              <input
-                type="text"
+            {/* The same search box as /art: suggestions while typing, Enter runs the full search there. */}
+            <div className="mb-8 text-left">
+              <ArtworkSearchBox
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Describe what you're looking for…"
-                className="w-full pl-11 pr-28 py-4 bg-background border border-border text-sm text-foreground placeholder:text-foreground/35 focus:outline-none focus:border-secondary transition-colors font-serif"
+                onChange={setSearchQuery}
+                onSubmit={handleSearch}
+                onPickStyle={(_id, name) => navigate(`/art?artStyle=${encodeURIComponent(name)}`)}
+                onPickCategory={(_id, name) => navigate(`/art?artCategory=${encodeURIComponent(name)}`)}
               />
-              <button
-                type="submit"
-                className="absolute right-0 top-0 h-full px-5 bg-primary text-primary-foreground text-[10px] uppercase tracking-[0.2em] font-display hover:bg-secondary transition-colors"
-              >
-                Search
-              </button>
-            </form>
+            </div>
 
             <div className="flex flex-wrap justify-center gap-2.5">
-              {MOOD_CHIPS.map((chip) => (
+              {(chips ?? []).map((chip) => (
                 <button
-                  key={chip}
-                  onClick={() => handleSearch(chip)}
+                  key={chip.q}
+                  onClick={() => handleSearch(chip.q)}
+                  title={`${chip.count} artworks`}
                   className="px-4 py-2 border border-border text-[10px] uppercase tracking-[0.18em] text-foreground/60 font-display hover:border-secondary hover:text-secondary hover:bg-secondary/5 transition-all duration-200"
                 >
-                  {chip}
+                  {chip.label}
                 </button>
               ))}
             </div>

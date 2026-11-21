@@ -1,0 +1,39 @@
+[
+  {
+    "key": "sadequain",
+    "name": "Sadequain",
+    "otherNames": [
+      "Syed Sadequain Ahmed Naqvi",
+      "Sadequain Naqqash"
+    ],
+    "country": "Pakistan",
+    "basedIn": "Karachi",
+    "birthYear": 1923,
+    "deathYear": 1987,
+    "birthPlace": "Amroha",
+    "gender": "male",
+    "style": "Calligraphy",
+    "level": "master",
+    "shortBio": "Pakistani painter and calligrapher (1923–1987).",
+    "biography": "Longer biography…",
+    "influences": "Islamic calligraphy, Picasso",
+    "education": null,
+    "awards": "Pride of Performance (1960)",
+    "exhibitions": null,
+    "websiteUrl": null,
+    "contactEmail": null,
+    "photoUrl": null,
+    "photoCredit": null,
+    "photoLicense": null,
+    "galleryKeys": [
+      "canvas-gallery"
+    ],
+    "dataSource": "web",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Sadequain"
+    ],
+    "verified": false,
+    "notes": null,
+    "madeUpFields": []
+  }
+]

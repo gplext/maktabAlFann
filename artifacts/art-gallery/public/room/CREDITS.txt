@@ -1,0 +1,12 @@
+3D room assets for the "See it in a room" view.
+All from Poly Haven (https://polyhaven.com), licensed CC0 (public domain): free for commercial use, no attribution required.
+
+  Sofa_01.glb               Sofa_01 (Kirill Sannikov)
+  side_table_tall_01.glb    side_table_tall_01
+  ceramic_vase_01.glb       ceramic_vase_01
+  potted_plant_02.glb       potted_plant_02 (simplified to 20%)
+  floor_*.jpg               herringbone_parquet (1k)
+  wall_*.jpg                painted_plaster_wall (1k)
+  lythwood_room_1k.hdr      lythwood_room HDRI (1k) - lighting and reflections
+
+Models were converted with gltf-transform (meshopt geometry, WebP textures, max 1024 px).

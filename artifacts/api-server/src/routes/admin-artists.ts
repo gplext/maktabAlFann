@@ -12,6 +12,7 @@ import { requireAdminSession } from "./admin-auth";
 import { requirePermission } from "../lib/permissions";
 import { closeEntityTasks } from "../lib/tasks";
 import { logger } from "../lib/logger";
+import { parseLevel } from "../lib/artist-level";
 
 
 const router: IRouter = Router();
@@ -232,7 +233,7 @@ router.post("/admin/artists", requireAdminSession, async (req, res) => {
   const {
     name, country, birthYear, gender, style, photoUrl,
     shortBio, biography, influences, awards, exhibitions, contactEmail, websiteUrl,
-    phone, phone2,
+    phone, phone2, level,
   } = req.body;
   if (!name || !style || !shortBio)
     return res.status(400).json({ error: "name, style, and shortBio are required" });
@@ -243,6 +244,7 @@ router.post("/admin/artists", requireAdminSession, async (req, res) => {
     birthYear: birthYear ? Number(birthYear) : new Date().getFullYear(),
     gender: gender || "",
     style,
+    level: parseLevel(level),
     photoUrl: photoUrl || "",
     shortBio,
     biography: biography || shortBio,
@@ -269,12 +271,13 @@ router.patch("/admin/artists/:id", requireAdminSession, async (req, res) => {
     "name", "country", "birthYear", "gender", "style", "photoUrl",
     "shortBio", "biography", "influences", "awards", "exhibitions",
     "contactEmail", "websiteUrl", "isVerified", "portfolioDisabled",
-    "defaultCommissionRate", "phone", "phone2",
+    "defaultCommissionRate", "phone", "phone2", "level",
   ] as const;
   const updates: any = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
+  if (updates.level !== undefined) updates.level = parseLevel(updates.level);
 
   const [updated] = await db
     .update(artistsTable)

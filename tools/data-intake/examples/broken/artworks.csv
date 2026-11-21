@@ -1,0 +1,4 @@
+key,artistKey,title,year,category,availability,price,currency,heldBy,imageUrl,widthCm,dataSource,sources
+treasures,sadequain,Treasures of Time,1910,Paintings,for-sale,abc,,Frere Hall,https://example.com/t.jpg,300,web,https://example.com
+ghost,unknown-artist,Ghost work,2001,Murals,sold,5000,PKR,,,,,
+treasures,sadequain,Treasures of Time,1995,Paintings,for-sale,,,,,,partner-gallery,

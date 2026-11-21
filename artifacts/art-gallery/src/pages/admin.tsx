@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatMoney } from "@/lib/money";
 import AdminLogin from "@/pages/admin-login";
+import { ARTIST_LEVEL_OPTIONS } from "@/lib/artist-levels";
 
 type EnquiryItem = { artworkId: number; title: string; artistName: string; imageUrl?: string };
 
@@ -35,7 +36,7 @@ type ShopItemData = {
 
 type AdminArtist = {
   id: number; name: string; country: string; birthYear: number; gender: string;
-  style: string; photoUrl: string; shortBio: string; biography: string; influences: string;
+  style: string; level?: string; photoUrl: string; shortBio: string; biography: string; influences: string;
   awards: string; exhibitions: string; contactEmail: string; websiteUrl: string;
   isVerified: string; portfolioDisabled: boolean; userId: string | null;
   defaultCommissionRate: number;
@@ -89,7 +90,7 @@ type CompatRow = {
 };
 
 const EMPTY_ARTIST_FORM: Record<string, string> = {
-  name: "", style: "", country: "Pakistan", birthYear: "", gender: "",
+  name: "", style: "", level: "emerging", country: "Pakistan", birthYear: "", gender: "",
   shortBio: "", biography: "", influences: "", awards: "", exhibitions: "",
   contactEmail: "", websiteUrl: "", photoUrl: "", isVerified: "pending",
   phone: "", phone2: "",
@@ -325,7 +326,7 @@ export default function Admin() {
 
   const startEditArtist = (artist: AdminArtist) => {
     setArtistForm({
-      name: artist.name, style: artist.style, country: artist.country,
+      name: artist.name, style: artist.style, level: artist.level ?? "emerging", country: artist.country,
       birthYear: String(artist.birthYear), gender: artist.gender,
       shortBio: artist.shortBio, biography: artist.biography, influences: artist.influences,
       awards: artist.awards, exhibitions: artist.exhibitions, contactEmail: artist.contactEmail,
@@ -934,6 +935,14 @@ export default function Admin() {
                           className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/60 resize-none" />
                       </div>
                     ))}
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] uppercase tracking-widest text-foreground/60">Level</label>
+                      <select value={artistForm.level ?? "emerging"} onChange={setAF("level")}
+                        className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/60">
+                        {ARTIST_LEVEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.hint}</option>)}
+                      </select>
+                    </div>
 
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] uppercase tracking-widest text-foreground/60">Verification Status</label>

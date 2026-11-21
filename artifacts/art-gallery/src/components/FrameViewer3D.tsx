@@ -1,398 +1,216 @@
-import { useRef, useState, useEffect, Suspense, Component, type ReactNode } from "react";
-import { Canvas, useFrame, useLoader } from "@react-three/fiber";
-import { OrbitControls, Environment } from "@react-three/drei";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Environment, useTexture, useProgress } from "@react-three/drei";
 import * as THREE from "three";
+import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { FramedPainting, framedSize, Safe, type ArtSizeMm, type FrameSpec3D } from "./three/framed-painting";
+import { LivingRoom, ROOM, SOFA_TOP } from "./three/living-room";
+import { ArButton } from "./three/ar";
 
-/** Keeps a failed load (offline lighting file, broken image) from blanking the whole page. */
-class Safe extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  override state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  override componentDidCatch() { /* shown as the fallback instead */ }
-  override render() { return this.state.failed ? this.props.fallback : this.props.children; }
-}
+export type { ArtSizeMm, FrameSpec3D } from "./three/framed-painting";
+export type ViewMode = "closeup" | "room";
 
-// Derive the ref type from the drei OrbitControls component
-type OrbitControlsImpl = NonNullable<React.ComponentRef<typeof OrbitControls>>;
+/**
+ * 3D view of a painting with its frame, at real size.
+ *   closeup: the framed painting on a gallery wall under a picture light; drag to tilt.
+ *   room:    the same painting hung above the sofa in a furnished living room.
+ * Built with three.js through @react-three/fiber and @react-three/drei.
+ */
+type OrbitImpl = NonNullable<React.ComponentRef<typeof OrbitControls>>;
+const HDRI = "/room/lythwood_room_1k.hdr";
 
-// ── Parse aspect ratio from size string (e.g. "24 × 36 in", "60x90 cm") ─────
-function parseAspectRatio(size?: string | null): number {
-  if (!size) return 1;
-  const nums = size.match(/[\d.]+/g);
-  if (!nums || nums.length < 2) return 1;
-  const w = parseFloat(nums[0]);
-  const h = parseFloat(nums[1]);
-  if (!w || !h) return 1;
-  return w / h;
-}
-
-// ── Frame geometry constants ───────────────────────────────────────────────
-const BORDER = 0.18;   // frame moulding width
-const DEPTH  = 0.14;   // frame extrusion depth
-const MAT    = 0.07;   // mat/mount inset
-
-// Gold moulding material
-const FRAME_MATERIAL = new THREE.MeshStandardMaterial({
-  color: new THREE.Color("#8B6914"),
-  metalness: 0.55,
-  roughness: 0.35,
-});
-
-// Mat board material (cream)
-const MAT_MATERIAL = new THREE.MeshStandardMaterial({
-  color: new THREE.Color("#F5EDD8"),
-  roughness: 0.9,
-  metalness: 0,
-});
-
-// Back panel material (dark)
-const BACK_MATERIAL = new THREE.MeshStandardMaterial({
-  color: new THREE.Color("#3A2A10"),
-  roughness: 0.8,
-});
-
-// ── Artwork canvas plane with texture ─────────────────────────────────────
-function ArtworkPlane({
-  imageUrl,
-  artW,
-  artH,
-}: {
-  imageUrl: string;
-  artW: number;
-  artH: number;
-}) {
-  const texture = useLoader(THREE.TextureLoader, imageUrl);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return (
-    <mesh position={[0, 0, DEPTH / 2 + 0.001]}>
-      <planeGeometry args={[artW, artH]} />
-      <meshStandardMaterial map={texture} roughness={0.6} metalness={0} />
-    </mesh>
-  );
-}
-
-// ── Fallback plane shown while texture loads ───────────────────────────────
-function ArtworkPlaceholder({ artW, artH }: { artW: number; artH: number }) {
-  return (
-    <mesh position={[0, 0, DEPTH / 2 + 0.001]}>
-      <planeGeometry args={[artW, artH]} />
-      <meshStandardMaterial color="#C8B89A" roughness={0.9} />
-    </mesh>
-  );
-}
-
-// ── One frame bar ─────────────────────────────────────────────────────────
-function FrameBar({
-  w, h, position, rotation,
-}: {
-  w: number; h: number;
-  position: [number, number, number];
-  rotation?: [number, number, number];
-}) {
-  return (
-    <mesh position={position} rotation={rotation}>
-      <boxGeometry args={[w, h, DEPTH]} />
-      <primitive object={FRAME_MATERIAL} attach="material" />
-    </mesh>
-  );
-}
-
-// ── The complete framed artwork ────────────────────────────────────────────
-function FramedArtwork({ imageUrl, size }: { imageUrl: string; size?: string | null }) {
-  const aspect = parseAspectRatio(size);
-
-  // Work in units where the longer side = 2.0
-  let totalW: number, totalH: number;
-  if (aspect >= 1) {
-    totalW = 2.0;
-    totalH = 2.0 / aspect;
-  } else {
-    totalH = 2.0;
-    totalW = 2.0 * aspect;
-  }
-
-  // Artwork (image) dimensions — inside the mat
-  const artW = totalW - 2 * (BORDER + MAT);
-  const artH = totalH - 2 * (BORDER + MAT);
-
-  // Mat dimensions
-  const matW = totalW - 2 * BORDER;
-  const matH = totalH - 2 * BORDER;
-
-  return (
-    <group>
-      {/* Back panel */}
-      <mesh position={[0, 0, -DEPTH / 2]}>
-        <boxGeometry args={[totalW, totalH, 0.01]} />
-        <primitive object={BACK_MATERIAL} attach="material" />
-      </mesh>
-
-      {/* Mat board */}
-      <mesh position={[0, 0, DEPTH / 2 - 0.001]}>
-        <planeGeometry args={[matW, matH]} />
-        <primitive object={MAT_MATERIAL} attach="material" />
-      </mesh>
-
-      {/* Frame bars: top, bottom, left, right */}
-      {/* Top */}
-      <FrameBar w={totalW} h={BORDER} position={[0, totalH / 2 - BORDER / 2, 0]} />
-      {/* Bottom */}
-      <FrameBar w={totalW} h={BORDER} position={[0, -(totalH / 2 - BORDER / 2), 0]} />
-      {/* Left */}
-      <FrameBar w={BORDER} h={totalH - 2 * BORDER} position={[-(totalW / 2 - BORDER / 2), 0, 0]} />
-      {/* Right */}
-      <FrameBar w={BORDER} h={totalH - 2 * BORDER} position={[totalW / 2 - BORDER / 2, 0, 0]} />
-
-      {/* Artwork image */}
-      <Safe fallback={<ArtworkPlaceholder artW={artW} artH={artH} />}>
-        <Suspense fallback={<ArtworkPlaceholder artW={artW} artH={artH} />}>
-          <ArtworkPlane imageUrl={imageUrl} artW={artW} artH={artH} />
-        </Suspense>
-      </Safe>
-    </group>
-  );
-}
-
-// ── Accurate frame built from real measurements (mm) ───────────────────────
-/** Mirrors the API's FrameSpec (lib/frames.ts). */
-export type FrameSpec3D = {
-  artwork: { widthMm: number; heightMm: number; depthMm: number } | null;
-  matWidthMm: number; matColourHex: string; revealGapMm: number; revealColourHex: string; lipMm: number;
-  faceWidthMm: number | null; frameDepthMm: number | null; glazing: string;
-  opening: { widthMm: number; heightMm: number } | null;
-  outer: { widthMm: number; heightMm: number; depthMm: number } | null;
-  look: { colourHex: string; metalness: number; roughness: number; profileShape: string; textureUrl: string | null } | null;
-};
-export type ArtSizeMm = { widthMm: number; heightMm: number; depthMm: number };
-
-function Box({ size, position, material }: { size: [number, number, number]; position: [number, number, number]; material: THREE.Material }) {
-  if (size[0] <= 0 || size[1] <= 0 || size[2] <= 0) return null;
-  return (
-    <mesh position={position} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-}
-
-/** Four bars forming a rectangular ring: outer w×h, bar width b, depth d, front face at zFront. */
-function Ring({ w, h, b, d, zFront, material }: { w: number; h: number; b: number; d: number; zFront: number; material: THREE.Material }) {
-  const z = zFront - d / 2;
-  return (
-    <group>
-      <Box size={[w, b, d]} position={[0, h / 2 - b / 2, z]} material={material} />
-      <Box size={[w, b, d]} position={[0, -(h / 2 - b / 2), z]} material={material} />
-      <Box size={[b, h - 2 * b, d]} position={[-(w / 2 - b / 2), 0, z]} material={material} />
-      <Box size={[b, h - 2 * b, d]} position={[w / 2 - b / 2, 0, z]} material={material} />
-    </group>
-  );
-}
-
-/** Ring whose bars carry a material photo (leather, wood grain), tiled along each bar. */
-function TexturedRing({ url, w, h, b, d, zFront, base }: { url: string; w: number; h: number; b: number; d: number; zFront: number; base: THREE.MeshStandardMaterial }) {
-  const tex = useLoader(THREE.TextureLoader, url);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const aspect = tex.image ? (tex.image as { width: number; height: number }).width / (tex.image as { width: number; height: number }).height : 4;
-  const barMat = (len: number, vertical: boolean) => {
-    const t = tex.clone();
-    t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
-    t.center.set(0.5, 0.5);
-    t.rotation = vertical ? Math.PI / 2 : 0;
-    t.repeat.set(Math.max(1, len / (b * aspect)), 1);
-    t.needsUpdate = true;
-    const m = base.clone(); m.map = t; m.color.set("#ffffff");
-    return m;
-  };
-  const z = zFront - d / 2;
-  const horiz = barMat(w, false), vert = barMat(h - 2 * b, true);
-  return (
-    <group>
-      <Box size={[w, b, d]} position={[0, h / 2 - b / 2, z]} material={horiz} />
-      <Box size={[w, b, d]} position={[0, -(h / 2 - b / 2), z]} material={horiz} />
-      <Box size={[b, h - 2 * b, d]} position={[-(w / 2 - b / 2), 0, z]} material={vert} />
-      <Box size={[b, h - 2 * b, d]} position={[w / 2 - b / 2, 0, z]} material={vert} />
-    </group>
-  );
-}
-
-/** Canvas as a box: painted front, plain sides (visible in floaters). */
-function CanvasBox({ imageUrl, w, h, d, zFront, gloss }: { imageUrl: string; w: number; h: number; d: number; zFront: number; gloss: number }) {
-  const texture = useLoader(THREE.TextureLoader, imageUrl);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const side = new THREE.MeshStandardMaterial({ color: "#E9E1D2", roughness: 0.9 });
-  const front = new THREE.MeshStandardMaterial({ map: texture, roughness: Math.max(0.05, 1 - gloss), metalness: 0 });
-  return (
-    <mesh position={[0, 0, zFront - d / 2]} castShadow>
-      <boxGeometry args={[w, h, Math.max(d, 0.0005)]} />
-      {[side, side, side, side, front, side].map((m, i) => <primitive key={i} object={m} attach={`material-${i}`} />)}
-    </mesh>
-  );
-}
-
-function AccurateFrame({ imageUrl, art, spec, gloss = 0.3 }: { imageUrl: string; art: ArtSizeMm; spec: FrameSpec3D | null; gloss?: number }) {
-  const hasFrame = Boolean(spec?.faceWidthMm && spec?.frameDepthMm && spec.opening);
-  const face = hasFrame ? spec!.faceWidthMm! : 0;
-  const frameDepth = hasFrame ? spec!.frameDepthMm! : 0;
-  const opening = hasFrame ? spec!.opening! : { widthMm: art.widthMm, heightMm: art.heightMm };
-  const outerW = hasFrame ? opening.widthMm + 2 * face : art.widthMm;
-  const outerH = hasFrame ? opening.heightMm + 2 * face : art.heightMm;
-  // Scene units: the longest outer edge = 2.0
-  const k = 2 / Math.max(outerW, outerH);
-  const u = (mm: number) => mm * k;
-
-  const look = spec?.look;
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(look?.colourHex ?? "#8B6914"),
-    metalness: look?.metalness ?? 0.4, roughness: look?.roughness ?? 0.4,
-  });
-  const lipMat = frameMat.clone(); lipMat.color.multiplyScalar(0.8);
-  const revealMat = new THREE.MeshStandardMaterial({ color: spec?.revealColourHex ?? "#111111", roughness: 0.95 });
-  const matMat = new THREE.MeshStandardMaterial({ color: spec?.matColourHex ?? "#F5EDD8", roughness: 0.95 });
-  const backMat = new THREE.MeshStandardMaterial({ color: "#2B1F10", roughness: 0.9 });
-
-  const D = u(frameDepth);
-  const gap = spec?.revealGapMm ?? 0;
-  const mat = spec?.matWidthMm ?? 0;
-  const artD = u(Math.max(1, art.depthMm));
-  // Where the artwork's front sits: a little behind the frame front (behind glass/mat when present).
-  const artFront = hasFrame ? D - u(gap > 0 ? 3 : 2 + (spec!.glazing !== "none" ? 2 : 0) + (mat > 0 ? 2 : 0)) : artD;
-
-  return (
-    <group>
-      {hasFrame && (
-        <>
-          {/* Moulding */}
-          {look?.textureUrl ? (
-            <Safe fallback={<Ring w={u(outerW)} h={u(outerH)} b={u(face)} d={D} zFront={D} material={frameMat} />}>
-              <Suspense fallback={<Ring w={u(outerW)} h={u(outerH)} b={u(face)} d={D} zFront={D} material={frameMat} />}>
-                <TexturedRing url={look.textureUrl} w={u(outerW)} h={u(outerH)} b={u(face)} d={D} zFront={D} base={frameMat} />
-              </Suspense>
-            </Safe>
-          ) : (
-            <Ring w={u(outerW)} h={u(outerH)} b={u(face)} d={D} zFront={D} material={frameMat} />
-          )}
-          {/* Bevel / rounded / ornate: an inner raised step on the face */}
-          {look && look.profileShape !== "flat" && face > 10 && (
-            <Ring w={u(outerW - face * 0.6)} h={u(outerH - face * 0.6)} b={u(face * 0.35)} d={u(look.profileShape === "ornate" ? 6 : 3)} zFront={D + u(look.profileShape === "ornate" ? 6 : 3)} material={lipMat} />
-          )}
-          {/* Back of the opening: dark shadow-gap recess, or backing board */}
-          <Box size={[u(opening.widthMm), u(opening.heightMm), u(1)]} position={[0, 0, u(0.5)]} material={gap > 0 ? revealMat : backMat} />
-          {/* Mat board with a window for the artwork */}
-          {mat > 0 && (
-            <Ring w={u(opening.widthMm)} h={u(opening.heightMm)} b={u(mat)} d={u(2)} zFront={artFront + u(2)} material={matMat} />
-          )}
-        </>
-      )}
-      <Safe fallback={<Box size={[u(art.widthMm), u(art.heightMm), artD]} position={[0, 0, artFront - artD / 2]} material={new THREE.MeshStandardMaterial({ color: "#C8B89A" })} />}>
-        <Suspense fallback={<Box size={[u(art.widthMm), u(art.heightMm), artD]} position={[0, 0, artFront - artD / 2]} material={new THREE.MeshStandardMaterial({ color: "#C8B89A" })} />}>
-          <CanvasBox imageUrl={imageUrl} w={u(art.widthMm)} h={u(art.heightMm)} d={artD} zFront={artFront} gloss={gloss} />
-        </Suspense>
-      </Safe>
-      {/* Glass / acrylic */}
-      {hasFrame && spec!.glazing !== "none" && (
-        <mesh position={[0, 0, D - u(1)]}>
-          <planeGeometry args={[u(opening.widthMm), u(opening.heightMm)]} />
-          <meshStandardMaterial color="#ffffff" transparent opacity={spec!.glazing === "anti_reflective" ? 0.03 : 0.1} metalness={0.9} roughness={0.05} />
-        </mesh>
-      )}
-    </group>
-  );
-}
-
-// ── Auto-rotate controller ─────────────────────────────────────────────────
-function AutoRotate({
-  orbitRef,
-}: {
-  orbitRef: React.RefObject<OrbitControlsImpl | null>;
-}) {
-  const [userInteracting, setUserInteracting] = useState(false);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+/** Gentle left-right sway until the visitor drags; then the view is theirs. */
+function Sway({ controls, target, distance, height = 0 }: { controls: React.RefObject<OrbitImpl | null>; target: THREE.Vector3; distance: number; height?: number }) {
+  const touched = useRef(false);
+  const t0 = useRef<number | null>(null);
   useEffect(() => {
-    const controls = orbitRef.current;
-    if (!controls) return;
-    const onStart = () => {
-      setUserInteracting(true);
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-    };
-    const onEnd = () => {
-      idleTimer.current = setTimeout(() => setUserInteracting(false), 2500);
-    };
-    controls.addEventListener("start", onStart);
-    controls.addEventListener("end", onEnd);
-    return () => {
-      controls.removeEventListener("start", onStart);
-      controls.removeEventListener("end", onEnd);
-    };
-  }, [orbitRef]);
-
-  useFrame((_, delta) => {
-    if (!userInteracting && orbitRef.current) {
-      orbitRef.current.autoRotate = true;
-      orbitRef.current.autoRotateSpeed = 0.6;
-      orbitRef.current.update();
-    } else if (orbitRef.current) {
-      orbitRef.current.autoRotate = false;
-    }
+    const c = controls.current; if (!c) return;
+    const stop = () => { touched.current = true; };
+    c.addEventListener("start", stop);
+    return () => c.removeEventListener("start", stop);
+  }, [controls]);
+  useFrame(({ camera, clock }) => {
+    if (touched.current || !controls.current) return;
+    t0.current ??= clock.elapsedTime;
+    const a = Math.sin((clock.elapsedTime - t0.current) * 0.25) * 0.2;
+    camera.position.set(target.x + Math.sin(a) * distance, target.y + height, target.z + Math.cos(a) * distance);
+    controls.current.target.copy(target);
+    controls.current.update();
   });
-
   return null;
 }
 
-// ── Scene content ─────────────────────────────────────────────────────────
-function Scene({ imageUrl, size, artMm, spec, gloss }: { imageUrl: string; size?: string | null; artMm?: ArtSizeMm | null; spec?: FrameSpec3D | null; gloss?: number }) {
-  const orbitRef = useRef<OrbitControlsImpl | null>(null);
+function Wall({ w, h }: { w: number; h: number }) {
+  const t = useTexture({ normalMap: "/room/wall_nor.jpg", roughnessMap: "/room/wall_rough.jpg" });
+  useEffect(() => { for (const x of Object.values(t)) { x.wrapS = x.wrapT = THREE.RepeatWrapping; x.repeat.set(w / 2, h / 2); x.needsUpdate = true; } }, [t, w, h]);
+  return (
+    <mesh position={[0, 0, 0]} receiveShadow>
+      <planeGeometry args={[w, h]} />
+      <meshStandardMaterial color="#E3E0DA" normalMap={t.normalMap} normalScale={new THREE.Vector2(0.3, 0.3)} roughnessMap={t.roughnessMap} roughness={0.95} />
+    </mesh>
+  );
+}
 
+/** A warm picture light aimed at the painting, casting the frame's soft shadow on the wall. */
+function PictureLight({ centre, top, size, intensity }: { centre: THREE.Vector3; top: number; size: number; intensity: number }) {
+  const target = useMemo(() => { const o = new THREE.Object3D(); o.position.copy(centre); return o; }, [centre]);
   return (
     <>
-      {/* Lighting */}
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 5, 4]} intensity={1.4} castShadow />
-      <directionalLight position={[-3, -2, -3]} intensity={0.3} color="#f0e8d0" />
-      <pointLight position={[0, 0, 5]} intensity={0.4} color="#fffaf0" />
-
-      {/* Environment for reflections on frame */}
-      {/* Studio reflections (downloaded); without internet the lights above are enough. */}
-      <Safe fallback={<hemisphereLight args={["#fff8ee", "#2a1d10", 0.6]} />}>
-        <Suspense fallback={null}><Environment preset="studio" /></Suspense>
-      </Safe>
-
-      {/* Frame */}
-      {artMm ? <AccurateFrame imageUrl={imageUrl} art={artMm} spec={spec ?? null} gloss={gloss} /> : <FramedArtwork imageUrl={imageUrl} size={size} />}
-
-      {/* Controls */}
-      <OrbitControls
-        ref={orbitRef as React.RefObject<OrbitControlsImpl>}
-        enablePan={false}
-        minDistance={1.5}
-        maxDistance={5}
-        enableDamping
-        dampingFactor={0.08}
+      <primitive object={target} />
+      <spotLight
+        position={[centre.x, top + 0.35 + size * 0.35, 0.55 + size * 0.6]} target={target}
+        angle={0.55} penumbra={0.85} intensity={intensity} distance={0} decay={2} color="#FFF8EF"
+        castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0002} shadow-normalBias={0.01} shadow-radius={6}
       />
-      <AutoRotate orbitRef={orbitRef as React.RefObject<OrbitControlsImpl | null>} />
     </>
   );
 }
 
-// ── Public component ───────────────────────────────────────────────────────
+type ModelRef = React.RefObject<THREE.Group | null>;
+
+function CloseUp({ imageUrl, art, spec, modelRef }: { imageUrl: string; art: ArtSizeMm; spec: FrameSpec3D | null; modelRef: ModelRef }) {
+  const controls = useRef<OrbitImpl | null>(null);
+  const [w, h] = framedSize(art, spec);
+  const size = Math.max(w, h);
+  const camera = useThree((s) => s.camera as THREE.PerspectiveCamera);
+  const target = useMemo(() => new THREE.Vector3(0, 0, 0.02), []);
+  // Fit the frame in view with some wall around it.
+  const distance = (size * 1.25) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) + 0.05;
+  useEffect(() => { camera.position.set(0, 0, distance); camera.near = 0.01; camera.far = 50; camera.updateProjectionMatrix(); }, [camera, distance]);
+  return (
+    <>
+      <color attach="background" args={["#E3E0DA"]} />
+      <Suspense fallback={null}><Wall w={Math.max(6, size * 6)} h={Math.max(4, size * 4)} /></Suspense>
+      <Safe fallback={<hemisphereLight args={["#fff6ea", "#5a4a3a", 0.8]} />}>
+        <Suspense fallback={null}><Environment files={HDRI} environmentIntensity={0.4} /></Suspense>
+      </Safe>
+      <ambientLight intensity={0.06} />
+      {/* Key light from the upper left: models the moulding and its bevels. */}
+      <directionalLight position={[-2, 2.5, 3]} intensity={0.45} color="#FFFFFF" />
+      <PictureLight centre={ORIGIN} top={h / 2} size={size} intensity={8 * Math.max(1, size)} />
+      <group ref={modelRef}><FramedPainting imageUrl={imageUrl} art={art} spec={spec} /></group>
+      <OrbitControls
+        ref={controls as React.RefObject<OrbitImpl>} target={target} enablePan={false} enableDamping dampingFactor={0.08}
+        minDistance={distance * 0.35} maxDistance={distance * 1.6}
+        minAzimuthAngle={-1} maxAzimuthAngle={1} minPolarAngle={Math.PI / 2 - 0.7} maxPolarAngle={Math.PI / 2 + 0.6}
+      />
+      <Sway controls={controls} target={target} distance={distance} />
+    </>
+  );
+}
+
+/** Hanging height: as designers do, the bottom of the frame 25 cm above the sofa back (never into the ceiling). */
+export function hangCentre(h: number) {
+  return Math.min(SOFA_TOP + 0.25 + h / 2, ROOM.height - 0.08 - h / 2);
+}
+const ORIGIN = new THREE.Vector3(0, 0, 0);
+
+function Room({ imageUrl, art, spec, modelRef }: { imageUrl: string; art: ArtSizeMm; spec: FrameSpec3D | null; modelRef: ModelRef }) {
+  const controls = useRef<OrbitImpl | null>(null);
+  const [, h] = framedSize(art, spec);
+  const cy = hangCentre(h);
+  // Frame the sofa and the painting together, from standing eye height.
+  const target = useMemo(() => new THREE.Vector3(0, Math.max(0.9, cy - 0.4), 0.3), [cy]);
+  const camera = useThree((s) => s.camera as THREE.PerspectiveCamera);
+  const distance = 3.1;
+  const eye = 1.35;
+  const picture = useMemo(() => new THREE.Vector3(0, cy, 0), [cy]);
+  useEffect(() => { camera.position.set(0, eye, target.z + distance); camera.near = 0.05; camera.far = 40; camera.updateProjectionMatrix(); }, [camera, target]);
+  return (
+    <>
+      <color attach="background" args={["#E4E1DB"]} />
+      <Safe fallback={<hemisphereLight args={["#fff6ea", "#5a4a3a", 0.9]} />}>
+        <Suspense fallback={null}><Environment files={HDRI} environmentIntensity={0.55} /></Suspense>
+      </Safe>
+      <ambientLight intensity={0.03} />
+      {/* Daylight from a window on the left. */}
+      <directionalLight
+        position={[-3.2, 2.6, 3.4]} intensity={1.2} color="#FFFBF5" castShadow
+        shadow-mapSize={[1024, 1024]} shadow-bias={-0.0003} shadow-normalBias={0.02}
+        shadow-camera-left={-4} shadow-camera-right={4} shadow-camera-top={3.5} shadow-camera-bottom={-1} shadow-camera-far={12} shadow-radius={5}
+      />
+      <PictureLight centre={picture} top={cy + h / 2} size={1} intensity={12} />
+      <Suspense fallback={null}><LivingRoom /></Suspense>
+      <group position={[0, cy, 0.002]}><group ref={modelRef}><FramedPainting imageUrl={imageUrl} art={art} spec={spec} /></group></group>
+      <OrbitControls
+        ref={controls as React.RefObject<OrbitImpl>} target={target} enablePan={false} enableDamping dampingFactor={0.08}
+        minDistance={1.2} maxDistance={4.8}
+        minAzimuthAngle={-0.6} maxAzimuthAngle={0.6} minPolarAngle={1.15} maxPolarAngle={1.75}
+      />
+      <Sway controls={controls} target={target} distance={distance} height={eye - target.y} />
+    </>
+  );
+}
+
 export interface FrameViewer3DProps {
   imageUrl: string;
-  size?: string | null;
-  /** Real artwork size. With it the viewer draws to scale; without it, the old generic gold frame. */
+  /** Real artwork size. Without it the painting is shown 60 cm on its long side. */
   artMm?: ArtSizeMm | null;
-  /** The chosen frame (from /cart addons or /artworks/:id/compatible-frames). Null = unframed. */
+  /** The chosen frame; null = unframed canvas. */
   spec?: FrameSpec3D | null;
+  mode?: ViewMode;
+  /** Old prop, ignored. */
+  size?: string | null;
   gloss?: number;
 }
 
-export default function FrameViewer3D({ imageUrl, size, artMm, spec, gloss }: FrameViewer3DProps) {
+/** Phones and small laptops get the lighter effect settings. */
+const LOW_POWER = typeof navigator !== "undefined"
+  && (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.hardwareConcurrency ?? 8) <= 4);
+
+/**
+ * Post-processing (@react-three/postprocessing):
+ *   N8AO       ambient occlusion: soft shadow where frame meets wall, in corners, under the sofa
+ *   Bloom      a soft glow only on the brightest highlights (gilding, glass glints)
+ *   ToneMapping colour-faithful "Neutral" tone mapping
+ *   SMAA       smooth edges
+ */
+function Effects({ room }: { room: boolean }) {
   return (
+    <EffectComposer multisampling={0}>
+      <N8AO aoRadius={room ? 0.55 : 0.12} distanceFalloff={room ? 1 : 0.35} intensity={room ? 2.4 : 1.8}
+        quality={LOW_POWER ? "performance" : "medium"} halfRes={LOW_POWER} />
+      <Bloom mipmapBlur luminanceThreshold={1.6} luminanceSmoothing={0.2} intensity={0.25} />
+      <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      <SMAA />
+    </EffectComposer>
+  );
+}
+
+/** "Loading 40%" while textures and room models download. */
+function Progress() {
+  const { active, progress } = useProgress();
+  if (!active) return null;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <p className="bg-black/45 px-5 py-3 text-white/85 text-xs uppercase tracking-widest">Loading {Math.round(progress)}%</p>
+    </div>
+  );
+}
+
+export default function FrameViewer3D({ imageUrl, artMm, spec, mode = "closeup" }: FrameViewer3DProps) {
+  const art = artMm ?? spec?.artwork ?? { widthMm: 600, heightMm: 450, depthMm: 20 };
+  const modelRef = useRef<THREE.Group | null>(null);
+  const getModel = useCallback(() => modelRef.current, []);
+  return (
+    <div className="absolute inset-0">
     <Canvas
-      camera={{ position: [0, 0, 3.2], fov: 45 }}
-      gl={{ antialias: true, alpha: false }}
-      style={{ background: "#1a120a" }}
-      shadows
+      key={mode}
+      shadows="percentage"
+      dpr={[1, 1.5]}
+      camera={{ fov: 40, position: [0, 0, 3] }}
+      // Tone mapping is done in the effects pass below (Khronos "Neutral": keeps the painting's colours true).
+      gl={{ antialias: false, toneMapping: THREE.NoToneMapping, toneMappingExposure: 1 }}
     >
-      <Scene imageUrl={imageUrl} size={size} artMm={artMm} spec={spec} gloss={gloss} />
+      {mode === "room"
+        ? <Room imageUrl={imageUrl} art={art} spec={spec ?? null} modelRef={modelRef} />
+        : <CloseUp imageUrl={imageUrl} art={art} spec={spec ?? null} modelRef={modelRef} />}
+      <Effects room={mode === "room"} />
     </Canvas>
+    <Progress />
+    {/* Phones: hang this framed painting on your own wall, at real size (AR). */}
+    <ArButton getModel={getModel} version={`${imageUrl}|${JSON.stringify(spec ?? null)}|${art.widthMm}x${art.heightMm}`} />
+    </div>
   );
 }

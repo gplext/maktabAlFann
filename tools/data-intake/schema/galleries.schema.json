@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "maktaba-al-fann/galleries.schema.json",
+  "title": "Gallery records",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "key",
+      "name",
+      "city",
+      "country",
+      "dataSource"
+    ],
+    "properties": {
+      "key": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "name": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "country": {
+        "type": "string"
+      },
+      "address": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "foundedYear": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1800,
+        "maximum": 2100
+      },
+      "websiteUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "uri"
+          },
+          {
+            "maxLength": 0
+          }
+        ]
+      },
+      "email": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "email"
+          },
+          {
+            "maxLength": 0
+          }
+        ]
+      },
+      "phone": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "logoUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "uri"
+          },
+          {
+            "maxLength": 0
+          }
+        ]
+      },
+      "isPartner": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "true when the gallery has agreed to list with us."
+      },
+      "dataSource": {
+        "enum": [
+          "web",
+          "partner-gallery",
+          "staff"
+        ]
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "verified": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "notes": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "madeUpFields": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Fields holding INVENTED test values (not real data). The importer refuses to load these into any database other than the local one. Replace them with real data and empty this list before going live."
+      }
+    }
+  }
+}

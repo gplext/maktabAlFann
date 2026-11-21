@@ -1,6 +1,7 @@
 import { useListArtists, useGetArtist, useGetArtistPortfolio, getGetArtistQueryKey, getGetArtistPortfolioQueryKey } from "@workspace/api-client-react";
 import type { Artist } from "@workspace/api-client-react";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { Loader2, Search, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
@@ -16,14 +17,28 @@ const PINNED: { name: string; position: number }[] = [
 
 export default function Artists() {
   usePageMeta({ title: `Pakistani Artists — Painters & Sculptors | ${SITE_NAME}`, description: "Meet the Pakistani artists of Maktaba Al-Fann: their stories, styles, influences and original works available to buy online." });
-  const [filters, setFilters] = useState<{ search?: string; country?: string; style?: string }>({});
+  // Masters are shown by default; "All" clears the level.
+  const DEFAULT_FILTERS: ArtistFilters = { level: "master" };
+  const [filters, setFilters] = useState<ArtistFilters>(DEFAULT_FILTERS);
   const { data: artists, isLoading } = useListArtists(filters);
+  const { data: allArtists } = useListArtists({});
+  const { data: facets } = useArtistFilters(filters);
 
-  const hasActiveFilters = !!(filters.search || filters.country || filters.style);
+  const hasActiveFilters = !!(filters.search || filters.style || filters.level !== "master");
+  const showCarousel = !filters.search && !filters.style;
+
+  // 10 artists per page; back to page 1 whenever the filters change.
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filters.search, filters.style, filters.level]);
+  const listTopRef = useRef<HTMLDivElement>(null);
+  const goToPage = (n: number) => {
+    setPage(n);
+    listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   // The full list keeps its usual order, except pinned artists sit at their set position.
   const ordered = useMemo(() => {
-    if (!artists || hasActiveFilters) return artists;
+    if (!artists || filters.search || filters.style) return artists;
     const list = [...artists];
     for (const pin of PINNED) {
       const from = list.findIndex((a) => a.name.trim().toLowerCase() === pin.name.toLowerCase());
@@ -32,29 +47,37 @@ export default function Artists() {
       list.splice(Math.min(pin.position - 1, list.length), 0, a!);
     }
     return list;
-  }, [artists, hasActiveFilters]);
+  }, [artists, filters.search, filters.style]);
 
-  const countries = useMemo(
-    () => [...new Set((artists ?? []).map((a) => a.country))].sort(),
-    [artists]
-  );
-  const styles = useMemo(
-    () => [...new Set((artists ?? []).map((a) => a.style))].sort(),
-    [artists]
-  );
+  const totalPages = Math.max(1, Math.ceil((ordered?.length ?? 0) / PAGE_SIZE));
+  const pageItems = ordered?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Page numbers: all when there are few, otherwise first, last and the pages around the current one.
+  const pageList = useMemo(() => {
+    if (totalPages <= 9) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const set = new Set([1, totalPages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages));
+    const sorted = [...set].sort((a, b) => a - b);
+    const out: (number | "…")[] = [];
+    sorted.forEach((n, i) => { if (i > 0 && n - sorted[i - 1]! > 1) out.push("…"); out.push(n); });
+    return out;
+  }, [totalPages, page]);
+
+  // Every style that has public paintings, with how many paintings it holds (same counts as the Artworks page).
+  const styleOptions = useMemo(() => {
+    const list = (facets?.styles ?? []).map((s) => ({ value: s.name, label: `${s.name} (${s.count})` }));
+    if (filters.style && !list.some((o) => o.value === filters.style)) list.unshift({ value: filters.style, label: `${filters.style} (0)` });
+    return list;
+  }, [facets, filters.style]);
 
   // Which artists and in what order come from Admin → Carousels ("artists-featured").
   const { data: carousel } = useCarousel("artists-featured");
-  const featured = useMemo(() => {
-    if (!artists) return [];
-    const ids = carousel?.items.map((i) => i.id) ?? [];
-    if (ids.length > 0) {
-      const byId = new Map(artists.map((a) => [a.id, a]));
-      const picked = ids.map((id) => byId.get(id)).filter((a): a is Artist => !!a);
-      if (picked.length > 0) return picked;
-    }
-    return [...artists].sort((a, b) => b.artworkCount - a.artworkCount).slice(0, 5);
-  }, [artists, carousel]);
+  // Each slide shows one of the artist's landscape paintings, picked by the server; no carousel without them.
+  const featured = useMemo<FeaturedSlide[]>(() => {
+    if (!allArtists || !carousel) return [];
+    const byId = new Map(allArtists.map((a) => [a.id, a]));
+    return carousel.items
+      .map((i) => ({ artist: byId.get(i.id), imageUrl: i.slideUrl ?? i.imageUrl }))
+      .filter((s): s is FeaturedSlide => !!s.artist && !!s.imageUrl);
+  }, [allArtists, carousel]);
 
   return (
     <div className="bg-background min-h-screen text-foreground pt-28 pb-24">
@@ -75,28 +98,42 @@ export default function Artists() {
               size={18}
             />
             <Input
-              placeholder="Search artists by name or origin…"
+              placeholder="Search artists by name…"
               value={filters.search || ""}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-              className="pl-12 py-5 text-base bg-card border-border rounded-none focus-visible:ring-secondary font-serif"
+              className="pl-12 py-5 text-base bg-card border-border rounded-none focus-visible:ring-secondary font-serif placeholder:text-foreground/40"
             />
+          </div>
+          <div className="flex flex-wrap gap-2 justify-center items-center">
+            {[
+              ...(facets?.levels ?? []),
+              ...(facets ? [{ value: undefined, label: "All", count: facets.levels.reduce((n, l) => n + l.count, 0) }] : []),
+            ].map((l) => {
+              const active = filters.level === l.value;
+              return (
+                <button
+                  key={l.value ?? "all"}
+                  onClick={() => setFilters((f) => ({ ...f, level: l.value }))}
+                  aria-pressed={active}
+                  className={`px-5 py-2 text-sm uppercase tracking-widest border transition-colors ${
+                    active ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-foreground/80 hover:border-secondary"
+                  }`}
+                >
+                  {l.label} <span className={active ? "opacity-80" : "text-foreground/50"}>({l.count})</span>
+                </button>
+              );
+            })}
           </div>
           <div className="flex flex-wrap gap-4 justify-center items-center">
             <FilterSelect
-              value={filters.country}
-              onChange={(v) => setFilters((f) => ({ ...f, country: v }))}
-              options={countries}
-              placeholder="Country of Origin"
-            />
-            <FilterSelect
               value={filters.style}
               onChange={(v) => setFilters((f) => ({ ...f, style: v }))}
-              options={styles}
+              options={styleOptions}
               placeholder="Style"
             />
             {hasActiveFilters && (
               <button
-                onClick={() => setFilters({})}
+                onClick={() => setFilters(DEFAULT_FILTERS)}
                 className="text-sm uppercase tracking-widest text-secondary hover:text-primary transition-colors border-b border-current pb-0.5"
               >
                 Clear All
@@ -117,7 +154,7 @@ export default function Artists() {
               No artists found matching your criteria.
             </p>
             <button
-              onClick={() => setFilters({})}
+              onClick={() => setFilters(DEFAULT_FILTERS)}
               className="mt-6 text-secondary hover:text-primary transition-colors border-b border-current pb-1 uppercase tracking-widest text-sm"
             >
               Clear Search
@@ -126,21 +163,47 @@ export default function Artists() {
         </div>
       ) : (
         <>
-          {!hasActiveFilters && featured.length > 0 && (
-            <FeaturedArtistCarousel artists={featured} />
+          {showCarousel && featured.length > 0 && (
+            <FeaturedArtistCarousel slides={featured} />
           )}
 
-          <div className="container mx-auto max-w-7xl px-6 md:px-12 mt-2">
+          <div ref={listTopRef} className="container mx-auto max-w-7xl px-6 md:px-12 mt-2 scroll-mt-28">
             {hasActiveFilters && (
-              <p className="text-sm text-muted-foreground uppercase tracking-widest mb-10">
+              <p className="text-sm text-foreground/60 uppercase tracking-widest mb-10">
                 {artists?.length} {artists?.length === 1 ? "artist" : "artists"} found
               </p>
             )}
             <div className="divide-y divide-border border-t border-b border-border">
-              {ordered?.map((artist, idx) => (
+              {pageItems?.map((artist, idx) => (
                 <ArtistTileRow key={artist.id} artist={artist} index={idx} />
               ))}
             </div>
+
+            {totalPages > 1 && (
+              <nav aria-label="Pages" className="mt-16 flex flex-wrap items-center justify-center gap-2">
+                <button onClick={() => goToPage(page - 1)} disabled={page === 1} aria-label="Previous page"
+                  className="h-11 w-11 border border-border flex items-center justify-center hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  <ChevronLeft size={18} />
+                </button>
+                {pageList.map((n, i) =>
+                  n === "…" ? (
+                    <span key={`gap${i}`} className="h-11 w-8 flex items-center justify-center text-foreground/40">…</span>
+                  ) : (
+                    <button key={n} onClick={() => goToPage(n)} aria-label={`Page ${n}`} aria-current={n === page ? "page" : undefined}
+                      className={`h-11 min-w-11 px-3 border text-sm font-display transition-colors ${
+                        n === page
+                          ? "border-primary bg-primary text-primary-foreground pointer-events-none"
+                          : "border-border text-foreground/70 hover:border-primary hover:text-primary"}`}>
+                      {n}
+                    </button>
+                  ),
+                )}
+                <button onClick={() => goToPage(page + 1)} disabled={page === totalPages} aria-label="Next page"
+                  className="h-11 w-11 border border-border flex items-center justify-center hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  <ChevronRight size={18} />
+                </button>
+              </nav>
+            )}
           </div>
         </>
       )}
@@ -148,7 +211,25 @@ export default function Artists() {
   );
 }
 
-function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
+type FeaturedSlide = { artist: Artist; imageUrl: string };
+
+/** The first sentence of a bio, without cutting at "b. 1988", initials like "R. M." or inside brackets. */
+function firstSentence(text: string): string {
+  const t = text.trim();
+  const end = /[.!?](?=\s|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = end.exec(t))) {
+    const head = t.slice(0, m.index + 1);
+    const openBrackets = (head.match(/\(/g)?.length ?? 0) - (head.match(/\)/g)?.length ?? 0);
+    if (openBrackets > 0) continue;
+    if (/(?:^|[\s(])(?:b|d|c|ca|St|Dr|Mr|Mrs|Ms|Jr|Sr|No|[A-Z])\.$/.test(head)) continue;
+    return head;
+  }
+  return t;
+}
+
+function FeaturedArtistCarousel({ slides }: { slides: FeaturedSlide[] }) {
+  const artists = slides.map((s) => s.artist);
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(1);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,18 +246,22 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
     timerRef.current = setTimeout(() => {
       setDirection(1);
       setCurrent((c) => (c + 1) % artists.length);
-    }, 5500);
+    }, 3500);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [current, artists.length]);
 
+  // Load every slide picture up front so each change is instant.
+  useEffect(() => {
+    for (const s of slides) { const img = new Image(); img.src = s.imageUrl; }
+  }, [slides]);
+
   const artist = artists[current];
   if (!artist) return null;
 
-  const firstSentence = artist.shortBio
-    ? (artist.shortBio.split(/[.!?]/)[0]?.trim() ?? "") + "."
-    : "";
+  const slideImage = slides[current]!.imageUrl;
+  const quote = artist.shortBio ? firstSentence(artist.shortBio) : "";
 
   return (
     <div className="relative w-full h-[calc(100svh-4.5rem)] min-h-[460px] overflow-hidden group">
@@ -192,12 +277,12 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
           initial="enter"
           animate="center"
           exit="exit"
-          transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="absolute inset-0"
         >
           <Link href={`/artists/${artist.id}`} className="block w-full h-full">
-            <ArtistImage name={artist.name} photoUrl={artist.photoUrl} coverImageUrl={artist.coverImageUrl} eager
-              className="w-full h-full [container-type:size]" imgClassName="object-cover object-center" />
+            <img src={slideImage} alt={`Painting by ${artist.name}`} loading="eager"
+              className="w-full h-full object-cover object-center" />
             <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/55 to-transparent" />
             <div className="absolute inset-0 flex items-end pb-14 px-10 md:px-20">
               <div className="max-w-lg">
@@ -207,9 +292,9 @@ function FeaturedArtistCarousel({ artists }: { artists: Artist[] }) {
                 <h2 className="text-5xl md:text-6xl font-display text-primary mb-5 leading-none">
                   {artist.name}
                 </h2>
-                {firstSentence && (
-                  <p className="text-base md:text-lg text-foreground/70 italic font-serif mb-7 leading-relaxed">
-                    &ldquo;{firstSentence}&rdquo;
+                {quote && (
+                  <p className="text-base md:text-lg text-foreground/70 italic font-serif mb-7 leading-relaxed line-clamp-3">
+                    &ldquo;{quote}&rdquo;
                   </p>
                 )}
                 <span className="inline-flex items-center gap-2 text-sm uppercase tracking-widest text-secondary border-b border-secondary pb-0.5">
@@ -291,11 +376,10 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
   const artworks = detail?.artworks?.slice(0, 2) ?? [];
   const isEven = index % 2 === 0;
 
-  const shortBioExcerpt = artist.shortBio
-    ? artist.shortBio.length > 180
-      ? artist.shortBio.slice(0, 180).trimEnd() + "…"
-      : artist.shortBio
-    : null;
+  // 2–3 lines about the artist: the biography when the short bio is just a line (e.g. "Pakistani artist (born 1948).").
+  const shortBio = artist.shortBio?.trim() ?? "";
+  const bio = detail?.biography?.trim() ?? "";
+  const shortBioExcerpt = (shortBio.length >= 160 || !bio ? shortBio : bio.replace(/\s+/g, " ")) || null;
 
   const sayingTruncated = artist.saying
     ? artist.saying.length > 120
@@ -336,7 +420,7 @@ function ArtistTileRow({ artist, index }: { artist: Artist; index: number }) {
         )}
 
         {shortBioExcerpt && (
-          <p className="text-sm text-foreground/60 font-serif leading-relaxed">
+          <p className="text-sm text-foreground/70 font-serif leading-relaxed line-clamp-3">
             {shortBioExcerpt}
           </p>
         )}
@@ -446,21 +530,48 @@ function FilterSelect({
 }: {
   value?: string;
   onChange: (v?: string) => void;
-  options: string[];
+  options: { value: string; label: string }[];
   placeholder: string;
 }) {
   return (
     <select
       value={value || ""}
       onChange={(e) => onChange(e.target.value || undefined)}
-      className="bg-card border border-border py-2.5 px-5 text-sm uppercase tracking-widest text-foreground/80 focus:outline-none focus:ring-1 focus:ring-secondary appearance-none cursor-pointer hover:border-secondary transition-colors"
+      className="bg-card border border-border py-2.5 px-5 text-sm uppercase tracking-widest text-foreground/80 text-center [text-align-last:center] focus:outline-none focus:ring-1 focus:ring-secondary appearance-none cursor-pointer hover:border-secondary transition-colors"
     >
       <option value="">{placeholder} — All</option>
       {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
         </option>
       ))}
     </select>
   );
+}
+
+type ArtistLevel = "master" | "emerging" | "student";
+type ArtistFilters = { search?: string; style?: string; level?: ArtistLevel };
+const PAGE_SIZE = 10;
+type ArtistFacets = {
+  styles: { name: string; count: number }[];
+  levels: { value: ArtistLevel; label: string; count: number }[];
+};
+
+/** Style counts (paintings) and level counts (artists) for the current filters. */
+function useArtistFilters(f: { search?: string; style?: string; level?: string }) {
+  const qs = new URLSearchParams();
+  if (f.search?.trim()) qs.set("search", f.search.trim());
+  if (f.style) qs.set("style", f.style);
+  if (f.level) qs.set("level", f.level);
+  const query = qs.toString();
+  return useQuery<ArtistFacets>({
+    queryKey: ["/artists/filters", query],
+    queryFn: async () => {
+      const res = await fetch(`/api/artists/filters${query ? `?${query}` : ""}`);
+      if (!res.ok) throw new Error("artist filters failed");
+      return res.json();
+    },
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  });
 }

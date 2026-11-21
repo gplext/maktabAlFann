@@ -10,6 +10,8 @@ export const artistsTable = pgTable("artists", {
   birthYear: integer("birth_year").notNull(),
   gender: text("gender").notNull(),
   style: text("style").notNull(),
+  /** master | emerging | student — chosen at registration (migration-11). */
+  level: text("level").notNull().default("emerging"),
   photoUrl: text("photo_url").notNull(),
   shortBio: text("short_bio").notNull(),
   biography: text("biography").notNull(),

@@ -37,5 +37,7 @@
     "wouter": "catalog:"
   },
   "dependencies": {
+    "@react-three/postprocessing": "3.2.2",
+    "postprocessing": "6.39.6"
   }
 }

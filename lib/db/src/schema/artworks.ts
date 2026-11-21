@@ -60,6 +60,8 @@ export const artworksTable = pgTable("artworks", {
   surfaceFinishId: integer("surface_finish_id").references(() => surfaceFinishesTable.id),
 
   isFeatured: boolean("is_featured").notNull().default(false),
+  /** The picture used for this artist in the Artists page carousel (see migration-12). */
+  artistSlide: boolean("artist_slide").notNull().default(false),
   timeline: jsonb("timeline").notNull().default([]),
   status: text("status").notNull().default("approved"),
   submittedByUserId: text("submitted_by_user_id"),

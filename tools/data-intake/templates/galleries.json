@@ -1,0 +1,23 @@
+[
+  {
+    "key": "canvas-gallery",
+    "name": "Canvas Gallery",
+    "city": "Karachi",
+    "country": "Pakistan",
+    "address": null,
+    "description": "Contemporary art gallery in Karachi.",
+    "foundedYear": null,
+    "websiteUrl": "https://canvasartgallery.net",
+    "email": null,
+    "phone": null,
+    "logoUrl": null,
+    "isPartner": false,
+    "dataSource": "web",
+    "sources": [
+      "https://canvasartgallery.net"
+    ],
+    "verified": false,
+    "notes": null,
+    "madeUpFields": []
+  }
+]

@@ -42,8 +42,8 @@ export function ArtworkSearchBox({
   value: string;
   onChange: (v: string) => void;
   onSubmit: (q: string) => void;
-  onPickStyle: (id: number) => void;
-  onPickCategory: (id: number) => void;
+  onPickStyle: (id: number, name: string) => void;
+  onPickCategory: (id: number, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -126,12 +126,12 @@ export function ArtworkSearchBox({
             <div>
               <p className={heading}>Filter by</p>
               {data!.styles.map((s) => (
-                <button key={`s${s.id}`} onClick={() => { setOpen(false); onPickStyle(s.id); }} className={row}>
+                <button key={`s${s.id}`} onClick={() => { setOpen(false); onPickStyle(s.id, s.name); }} className={row}>
                   <Palette size={15} className="text-foreground/50 shrink-0" /> Style: {s.name}
                 </button>
               ))}
               {data!.categories.map((c) => (
-                <button key={`c${c.id}`} onClick={() => { setOpen(false); onPickCategory(c.id); }} className={row}>
+                <button key={`c${c.id}`} onClick={() => { setOpen(false); onPickCategory(c.id, c.name); }} className={row}>
                   <Shapes size={15} className="text-foreground/50 shrink-0" /> Art type: {c.name}
                 </button>
               ))}

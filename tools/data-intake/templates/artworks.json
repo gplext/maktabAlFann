@@ -1,0 +1,38 @@
+[
+  {
+    "key": "sadequain-seascape-with-three-boats-1940",
+    "artistKey": "sadequain",
+    "galleryKey": null,
+    "title": "Seascape with Three Boats",
+    "year": 1940,
+    "yearIsApprox": false,
+    "category": "Paintings",
+    "style": "Realism",
+    "medium": "Oil on canvas",
+    "paintMaterial": "Oil",
+    "baseType": "Canvas",
+    "theme": "Seascape",
+    "shortDescription": null,
+    "longDescription": null,
+    "widthCm": null,
+    "heightCm": null,
+    "depthCm": null,
+    "framed": null,
+    "availability": "not-for-sale",
+    "price": null,
+    "currency": "PKR",
+    "featured": false,
+    "artistSlide": false,
+    "heldBy": "Metropolitan Museum of Art",
+    "imageUrl": null,
+    "imageCredit": null,
+    "imageLicense": null,
+    "dataSource": "web",
+    "sources": [
+      "https://www.wikidata.org/wiki/Q126131201"
+    ],
+    "verified": false,
+    "notes": null,
+    "madeUpFields": []
+  }
+]

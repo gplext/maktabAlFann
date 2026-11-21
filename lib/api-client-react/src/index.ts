@@ -120,6 +120,7 @@ export type ListArtworksParams = {
   artType?: string;
   /** Search phrase. */
   q?: string;
+  sort?: "recommended" | "newest" | "price_asc" | "price_desc";
 };
 
 export const getListArtworksQueryKey = (params?: ListArtworksParams) =>
@@ -193,6 +194,7 @@ export type ListArtistsParams = {
   country?: string;
   gender?: string;
   style?: string;
+  level?: "master" | "emerging" | "student";
   search?: string;
   minAge?: number;
   maxAge?: number;

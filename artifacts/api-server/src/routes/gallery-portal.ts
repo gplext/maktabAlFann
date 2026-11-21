@@ -18,6 +18,7 @@ import { SubmitArtworkBody, UpdateArtworkBody } from "@workspace/api-zod";
 import { validateClassification, deriveDisplayPrice } from "../lib/classification";
 import { eq, and, sql, inArray, or } from "drizzle-orm";
 import { formatZodError } from "../lib/validation";
+import { parseLevel } from "../lib/artist-level";
 
 const router: IRouter = Router();
 
@@ -197,7 +198,7 @@ router.post("/gallery-portal/check-artist", requireGallery, async (req: any, res
 // ── POST /gallery-portal/artists ─────────────────────────────────────────────
 // Creates artist if not found by name, then links to gallery
 router.post("/gallery-portal/artists", requireGallery, async (req: any, res) => {
-  const { name, style, shortBio, photoUrl, country, birthYear } = req.body;
+  const { name, style, shortBio, photoUrl, country, birthYear, level } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: "Artist name is required" });
   if (!style?.trim()) return res.status(400).json({ error: "Artist style is required" });
 
@@ -219,6 +220,7 @@ router.post("/gallery-portal/artists", requireGallery, async (req: any, res) => 
       .values({
         name: name.trim(),
         style: style.trim(),
+        level: parseLevel(level),
         shortBio: (shortBio ?? "").trim(),
         photoUrl: (photoUrl ?? "").trim(),
         country: (country ?? "Pakistan").trim(),
@@ -275,6 +277,7 @@ router.get("/gallery-portal/artists/:id", requireGallery, async (req: any, res) 
       id: artistsTable.id,
       name: artistsTable.name,
       style: artistsTable.style,
+      level: artistsTable.level,
       country: artistsTable.country,
       birthYear: artistsTable.birthYear,
       gender: artistsTable.gender,
@@ -308,7 +311,7 @@ router.patch("/gallery-portal/artists/:id", requireGallery, async (req: any, res
     .limit(1);
   if (!link) return res.status(403).json({ error: "Artist not in your gallery" });
 
-  const { name, style, country, birthYear, gender, shortBio, biography, influences, websiteUrl, contactEmail, phone, photoUrl } = req.body;
+  const { name, style, country, birthYear, gender, shortBio, biography, influences, websiteUrl, contactEmail, phone, photoUrl, level } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: "Artist name is required" });
   if (!style?.trim()) return res.status(400).json({ error: "Art style is required" });
 
@@ -317,6 +320,7 @@ router.patch("/gallery-portal/artists/:id", requireGallery, async (req: any, res
     .set({
       ...(name       !== undefined && { name: name.trim() }),
       ...(style      !== undefined && { style: style.trim() }),
+      ...(level      !== undefined && { level: parseLevel(level) }),
       ...(country    !== undefined && { country: country.trim() }),
       ...(birthYear  !== undefined && { birthYear: Number(birthYear) || undefined }),
       ...(gender     !== undefined && { gender: gender.trim() }),

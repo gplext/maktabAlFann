@@ -1,0 +1,62 @@
+{
+  "styles": [
+    "Impressionism",
+    "Cubism",
+    "Realism",
+    "Abstract",
+    "Expressionism",
+    "Surrealism",
+    "Minimalism",
+    "Contemporary",
+    "Mughal Miniature",
+    "Folk Art"
+  ],
+  "categories": [
+    "Paintings",
+    "Sculptures",
+    "Drawings",
+    "Printmaking",
+    "Photography",
+    "AI Assisted"
+  ],
+  "paintMaterials": [
+    "Oil",
+    "Acrylic",
+    "Watercolour",
+    "Gouache",
+    "Ink",
+    "Charcoal",
+    "Pastel",
+    "Tempera",
+    "Gold Leaf",
+    "Natural Pigments",
+    "Mixed Media",
+    "Bronze",
+    "Marble",
+    "Wood",
+    "Resin",
+    "Ceramic",
+    "Steel"
+  ],
+  "baseTypes": [
+    "Canvas",
+    "Stretched canvas",
+    "Gallery-wrap canvas",
+    "Linen",
+    "Paper",
+    "Canvas board / panel",
+    "Wasli Paper",
+    "Rolled canvas",
+    "Wood Panel",
+    "Board",
+    "Wasli",
+    "Glass",
+    "Metal",
+    "Stone",
+    "Hardboard / MDF",
+    "Clay",
+    "Fabric",
+    "Wall / Plaster"
+  ],
+  "_note": "Values the site already has (copied from the live site). Unknown values are reported as new. Add a value here once it exists in Admin."
+}

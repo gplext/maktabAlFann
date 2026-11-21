@@ -37,6 +37,9 @@ COPY --from=build --chown=node:node /app/artifacts/api-server/dist ./dist
 COPY --from=build --chown=node:node /app/artifacts/art-gallery/dist/public ./public
 # Kept in the image so they can be run from Coolify's terminal if needed.
 COPY --chown=node:node migrations ./migrations
+# Data tools and the starting data: check or load the database from Coolify's terminal (see seed/README.md).
+COPY --chown=node:node tools/data-intake ./tools/data-intake
+COPY --chown=node:node seed ./seed
 # Coolify's health check calls the app with wget/curl, which the slim image lacks.
 RUN apt-get update && apt-get install -y --no-install-recommends wget \
  && rm -rf /var/lib/apt/lists/* \

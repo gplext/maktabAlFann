@@ -7,6 +7,15 @@ import { Loader2, Filter, X, ChevronDown, ChevronLeft, ChevronRight, Check } fro
 import { ArtworkSearchBox, useSuggestions } from "@/components/artwork-search-box";
 import type { Artwork } from "@workspace/api-client-react";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
+import { formatMoney } from "@/lib/money";
+
+type Sort = "recommended" | "newest" | "price_asc" | "price_desc";
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "recommended", label: "Recommended" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+  { value: "newest", label: "Newest" },
+];
 
 /**
  * Filter state.
@@ -26,6 +35,7 @@ type Filters = {
 export default function ArtCollection() {
   usePageMeta({ title: `Buy Original Pakistani Paintings Online | ${SITE_NAME}`, description: "Browse original paintings, calligraphy, drawings and sculpture by Pakistani artists. Filter by style, medium and size, and order online with delivery in Pakistan and abroad." });
   const [filters, setFilters] = useState<Filters>({});
+  const [sort, setSort] = useState<Sort>("recommended");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [location, navigate] = useLocation();
@@ -33,16 +43,35 @@ export default function ArtCollection() {
   // 100 artworks per page. One extra is fetched only to know whether a next page exists.
   const PAGE_SIZE = 100;
   const [page, setPage] = useState(1);
-  const filtersKey = JSON.stringify(filters) + activeQuery;
+  const filtersKey = JSON.stringify(filters) + activeQuery + sort;
   useEffect(() => { setPage(1); }, [filtersKey]);
   // The search runs in the database together with the filters, page by page (best match first).
   const q = activeQuery || undefined;
-  const { data: pageRows, isLoading } = useListArtworks({ ...filters, q, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  const { data: pageRows, isLoading } = useListArtworks({ ...filters, q, sort: sort === "recommended" ? undefined : sort, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
   const artworks = useMemo(() => pageRows?.slice(0, PAGE_SIZE), [pageRows]);
   const hasNextPage = (pageRows?.length ?? 0) > PAGE_SIZE;
   const goToPage = (n: number) => { setPage(n); window.scrollTo(0, 0); };
   // Counts follow the filters chosen in the other groups; the previous numbers stay on screen while new ones load.
   const { data: filterOptions } = useGetArtworkFilters({ ...filters, q }, { query: { placeholderData: keepPreviousData } });
+  // Total matching works: every artwork has exactly one art type, so the art-type counts add up
+  // to the total (they ignore their own selection, so with a type chosen, use that type's count).
+  const totalWorks = useMemo(() => {
+    const cats = filterOptions?.categories;
+    if (!cats) return null;
+    return filters.artCategoryId != null
+      ? (cats.find((c) => c.id === filters.artCategoryId)?.count ?? null)
+      : cats.reduce((n, c) => n + c.count, 0);
+  }, [filterOptions, filters.artCategoryId]);
+  const totalPages = totalWorks != null ? Math.max(1, Math.ceil(totalWorks / PAGE_SIZE)) : (hasNextPage ? page + 1 : page);
+  // Page numbers to show: all of them when there are few, otherwise first, last and the pages around the current one.
+  const pageList = useMemo(() => {
+    if (totalPages <= 9) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const set = new Set([1, totalPages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages));
+    const sorted = [...set].sort((a, b) => a - b);
+    const out: (number | "…")[] = [];
+    sorted.forEach((n, i) => { if (i > 0 && n - sorted[i - 1]! > 1) out.push("…"); out.push(n); });
+    return out;
+  }, [totalPages, page]);
 
   // Re-read the query string whenever it changes, so links within /art (such as
   // "View all →" to /art?artCategory=…) apply their filter, not only on first load.
@@ -238,10 +267,20 @@ export default function ArtCollection() {
           {/* ── Main content ── */}
           <main className="flex-1 min-w-0">
 
+            <div className="mb-6 flex justify-end">
+              <label className="inline-flex items-center gap-3 text-xs uppercase tracking-widest text-foreground/60">
+                Sort by
+                <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}
+                  className="h-10 px-3 pr-8 bg-card border border-border text-sm normal-case tracking-normal text-foreground focus:outline-none focus:border-secondary cursor-pointer">
+                  {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+            </div>
+
             {(isSearchMode || activeChips.length > 0) && (
               <div className="mb-10 flex flex-wrap items-center gap-2" aria-live="polite">
                 <span className="text-xs uppercase tracking-widest text-foreground/60 mr-1">
-                  {isLoading ? "Searching…" : <>Showing {artworks?.length ?? 0}{hasNextPage ? "+" : ""} {artworks?.length === 1 ? "work" : "works"}:</>}
+                  {isLoading ? "Searching…" : <>Showing {totalWorks != null && totalPages > 1 ? `${(page - 1) * PAGE_SIZE + 1}–${(page - 1) * PAGE_SIZE + (artworks?.length ?? 0)} of ${totalWorks}` : `${artworks?.length ?? 0}${hasNextPage ? "+" : ""}`} {(totalWorks ?? artworks?.length) === 1 ? "work" : "works"}:</>}
                 </span>
                 {isSearchMode && (
                   <button onClick={clearSearch} aria-label={`Remove search: ${activeQuery}`}
@@ -292,8 +331,8 @@ export default function ArtCollection() {
                   {activeChips.length && isSearchMode ? "Clear search and filters" : isSearchMode ? "Browse the full collection" : "Clear refinements"}
                 </button>
               </div>
-            ) : isSearchMode ? (
-              /* Search results: best match first */
+            ) : isSearchMode || sort !== "recommended" ? (
+              /* Search results or a chosen sort order: one grid in that order */
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
                 className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 {artworks!.map((art) => <SearchResultCard key={art.id} artwork={art} />)}
@@ -307,16 +346,28 @@ export default function ArtCollection() {
               </div>
             )}
 
-            {!isLoading && (page > 1 || hasNextPage) && (
-              <nav aria-label="Pages" className="mt-20 flex items-center justify-center gap-4">
-                <button onClick={() => goToPage(page - 1)} disabled={page === 1}
-                  className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                  <ChevronLeft size={16} /> Previous
+            {!isLoading && totalPages > 1 && (
+              <nav aria-label="Pages" className="mt-20 flex flex-wrap items-center justify-center gap-2">
+                <button onClick={() => goToPage(page - 1)} disabled={page === 1} aria-label="Previous page"
+                  className="h-11 w-11 border border-border flex items-center justify-center hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  <ChevronLeft size={18} />
                 </button>
-                <span className="text-xs uppercase tracking-widest text-foreground/60">Page {page}</span>
-                <button onClick={() => goToPage(page + 1)} disabled={!hasNextPage}
-                  className="h-12 px-5 border border-border flex items-center gap-2 text-xs uppercase tracking-widest hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                  Next <ChevronRight size={16} />
+                {pageList.map((n, i) =>
+                  n === "…" ? (
+                    <span key={`gap${i}`} className="h-11 w-8 flex items-center justify-center text-foreground/40">…</span>
+                  ) : (
+                    <button key={n} onClick={() => goToPage(n)} aria-label={`Page ${n}`} aria-current={n === page ? "page" : undefined}
+                      className={`h-11 min-w-11 px-3 border text-sm font-display transition-colors ${
+                        n === page
+                          ? "border-primary bg-primary text-primary-foreground pointer-events-none"
+                          : "border-border text-foreground/70 hover:border-primary hover:text-primary"}`}>
+                      {n}
+                    </button>
+                  ),
+                )}
+                <button onClick={() => goToPage(page + 1)} disabled={!hasNextPage} aria-label="Next page"
+                  className="h-11 w-11 border border-border flex items-center justify-center hover:border-primary hover:text-primary disabled:opacity-30 disabled:pointer-events-none transition-colors">
+                  <ChevronRight size={18} />
                 </button>
               </nav>
             )}
@@ -508,6 +559,9 @@ function SearchResultCard({ artwork }: { artwork: Artwork }) {
         </h4>
         <p className="text-[11px] text-foreground/50 mt-0.5 italic line-clamp-1">{artwork.artistName}</p>
         <p className="text-[10px] text-secondary mt-0.5 uppercase tracking-wide line-clamp-1">{artwork.theme}</p>
+        {artwork.displayPrice != null && (
+          <p className="text-xs text-foreground/80 mt-1 font-medium">{formatMoney(artwork.displayPrice)}</p>
+        )}
       </div>
     </Link>
   );

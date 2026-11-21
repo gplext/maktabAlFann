@@ -98,7 +98,7 @@ router.get("/artworks", async (req, res): Promise<void> => {
   const {
     nationality, theme, artistId, featured, specialtyType, limit, offset,
     artCategoryId, artCategory, artStyleId, artStyle, sizeId, size, artType,
-    baseTypeId, paintMaterialId, q,
+    baseTypeId, paintMaterialId, q, sort,
   } = parsed.data;
 
   const conditions: SQL[] = [PUBLIC_ONLY!];
@@ -129,7 +129,11 @@ router.get("/artworks", async (req, res): Promise<void> => {
   const rows = await cardQuery()
     .where(and(...conditions))
     // Best match first when searching; then a fixed order, so pages (limit/offset) never repeat or skip a work.
-    .orderBy(...(search ? [desc(search.rank), asc(artworksTable.id)] : [asc(artworksTable.id)]))
+    .orderBy(...(
+      sort === "price_asc" ? [sql`${artworksTable.displayPrice} ASC NULLS LAST`, asc(artworksTable.id)]
+      : sort === "price_desc" ? [sql`${artworksTable.displayPrice} DESC NULLS LAST`, asc(artworksTable.id)]
+      : sort === "newest" ? [desc(artworksTable.id)]
+      : search ? [desc(search.rank), asc(artworksTable.id)] : [asc(artworksTable.id)]))
     .limit(limit ?? 100)
     .offset(offset ?? 0);
 
@@ -141,6 +145,40 @@ router.get("/artworks", async (req, res): Promise<void> => {
  * Suggestions while typing in the /art search box: matching artworks, artists,
  * styles and art types — plus "Did you mean…" when no artwork matches.
  */
+/**
+ * Discovery chips for the home page: subjects, places and styles that really match
+ * public artworks right now (each is run through the same search as /art).
+ * Only chips with at least two results are returned (up to 10, in the order listed).
+ */
+const DISCOVER_CHIPS: { label: string; q: string }[] = [
+  // In display order: subjects and places mixed with a few styles and techniques.
+  { label: "Karachi", q: "karachi" }, { label: "Flowers", q: "flower" }, { label: "Calligraphy", q: "calligraphy" },
+  { label: "Sea & shore", q: "sea" }, { label: "Miniature", q: "miniature" }, { label: "Horses", q: "horse" },
+  { label: "Gold leaf", q: "gold" }, { label: "Trees", q: "tree" }, { label: "Portraits", q: "portrait" },
+  { label: "Birds", q: "bird" }, { label: "Abstract", q: "abstract" }, { label: "Boats", q: "boat" },
+  { label: "Mountains", q: "mountain" }, { label: "Clouds & sky", q: "cloud" }, { label: "Night", q: "night" },
+  { label: "Village life", q: "village" }, { label: "City life", q: "city" }, { label: "Women", q: "woman" },
+  { label: "Mughal", q: "mughal" }, { label: "Lahore", q: "lahore" }, { label: "Landscapes", q: "landscape" },
+  { label: "Photography", q: "photograph" }, { label: "Sculpture", q: "sculpture" },
+];
+let chipCache: { at: number; chips: { label: string; q: string; count: number }[] } | null = null;
+router.get("/artworks/discover-chips", async (_req, res): Promise<void> => {
+  if (!chipCache || Date.now() - chipCache.at > 10 * 60_000) {
+    const counted = await Promise.all(DISCOVER_CHIPS.map(async (c) => {
+      const s = (await artworkSearch(c.q))!;
+      const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(artworksTable)
+        .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
+        .innerJoin(artCategoriesTable, eq(artworksTable.artCategoryId, artCategoriesTable.id))
+        .leftJoin(artStylesTable, eq(artworksTable.artStyleId, artStylesTable.id))
+        .where(and(PUBLIC_ONLY, s.where));
+      return { ...c, count: Number(row?.n ?? 0) };
+    }));
+    chipCache = { at: Date.now(), chips: counted.filter((c) => c.count >= 2).slice(0, 10) };
+  }
+  res.set("Cache-Control", "no-cache");
+  res.json(chipCache.chips);
+});
+
 router.get("/artworks/suggest", async (req, res): Promise<void> => {
   const q = String(req.query.q ?? "").slice(0, 100);
   const words = searchWords(q);
@@ -176,8 +214,32 @@ router.get("/artworks/featured", async (_req, res): Promise<void> => {
     .where(and(PUBLIC_ONLY, eq(artworksTable.isFeatured, true)))
     .limit(6);
 
+  // "Stories from Pakistan" needs a few artworks. When Admin hasn't featured enough,
+  // fill up with the newest public artworks that have a picture and a description,
+  // one per artist so the section isn't four works by the same person.
+  if (rows.length < 4) {
+    const have = new Set(rows.map((r) => r.id));
+    const artists = new Set(rows.map((r) => r.artistId));
+    const recent = await cardQuery()
+      .where(and(PUBLIC_ONLY, sql`${artworksTable.imageUrl} <> ''`, sql`${artworksTable.shortDescription} <> ''`))
+      .orderBy(desc(artworksTable.id))
+      .limit(60);
+    for (const r of recent) {
+      if (rows.length >= 6) break;
+      if (have.has(r.id) || artists.has(r.artistId)) continue;
+      rows.push(r); have.add(r.id); artists.add(r.artistId);
+    }
+  }
+
   const held = await artworkAvailability(rows.map((r) => r.id));
-  res.json(GetFeaturedArtworksResponse.parse(rows.map((r) => ({ ...withLegacyAlias(r), availability: held.get(r.id) ?? "available" }))));
+  // The long description, for the 2–3 line teaser under each "Stories from Pakistan" artwork.
+  const stories = new Map(
+    rows.length
+      ? (await db.select({ id: artworksTable.id, history: artworksTable.history }).from(artworksTable).where(inArray(artworksTable.id, rows.map((r) => r.id))))
+          .map((s) => [s.id, s.history] as const)
+      : [],
+  );
+  res.json(GetFeaturedArtworksResponse.parse(rows.map((r) => ({ ...withLegacyAlias(r), story: stories.get(r.id) || null, availability: held.get(r.id) ?? "available" }))));
 });
 
 /**

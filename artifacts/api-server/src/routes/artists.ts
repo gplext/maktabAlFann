@@ -15,6 +15,7 @@ import {
   GetArtistResponse,
 } from "@workspace/api-zod";
 import { formatZodError } from "../lib/validation";
+import { ARTIST_LEVELS, LEVEL_LABELS } from "../lib/artist-level";
 
 /** The artist's best public artwork picture, shown when there is no real portrait. */
 const COVER_IMAGE = sql<string | null>`(
@@ -29,6 +30,45 @@ const HAS_PUBLIC_WORK = sql`EXISTS (SELECT 1 FROM artworks w WHERE w.artist_id =
 
 const router: IRouter = Router();
 
+/** The artist has at least one public artwork in this style (by the artwork's style, like /art). */
+const hasWorkInStyle = (style: string) => sql`EXISTS (SELECT 1 FROM artworks w JOIN art_styles s ON s.id = w.art_style_id
+  WHERE w.artist_id = ${artistsTable.id} AND w.status = 'approved' AND s.name = ${style})`;
+
+/**
+ * Filter options for /artists, with live counts (each group ignores its own selection):
+ * styles = how many public artworks of the listed artists are in that style;
+ * levels = how many artists are at that level.
+ */
+router.get("/artists/filters", async (req, res): Promise<void> => {
+  const level = (ARTIST_LEVELS as readonly string[]).includes(String(req.query.level)) ? String(req.query.level) : null;
+  const style = typeof req.query.style === "string" && req.query.style.trim() ? req.query.style.trim() : null;
+  const search = typeof req.query.search === "string" && req.query.search.trim() ? req.query.search.trim() : null;
+  const base: SQL[] = [eq(artistsTable.isVerified, "approved"), HAS_PUBLIC_WORK];
+  if (search) base.push(ilike(artistsTable.name, `%${search}%`));
+
+  const styles = await db
+    .select({ name: artStylesTable.name, count: sql<number>`count(*)::int` })
+    .from(artworksTable)
+    .innerJoin(artistsTable, eq(artworksTable.artistId, artistsTable.id))
+    .innerJoin(artStylesTable, eq(artworksTable.artStyleId, artStylesTable.id))
+    .where(and(...base, eq(artworksTable.status, "approved"), ...(level ? [eq(artistsTable.level, level)] : [])))
+    .groupBy(artStylesTable.name, artStylesTable.displayOrder)
+    .orderBy(artStylesTable.displayOrder, artStylesTable.name);
+
+  const levelRows = await db
+    .select({ level: artistsTable.level, count: sql<number>`count(*)::int` })
+    .from(artistsTable)
+    .where(and(...base, ...(style ? [hasWorkInStyle(style)] : [])))
+    .groupBy(artistsTable.level);
+  const byLevel = new Map(levelRows.map((r) => [r.level, Number(r.count)]));
+
+  res.set("Cache-Control", "no-cache");
+  res.json({
+    styles: styles.map((s) => ({ name: s.name, count: Number(s.count) })),
+    levels: ARTIST_LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l], count: byLevel.get(l) ?? 0 })),
+  });
+});
+
 router.get("/artists", async (req, res): Promise<void> => {
   const parsed = ListArtistsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -36,13 +76,14 @@ router.get("/artists", async (req, res): Promise<void> => {
     return;
   }
 
-  const { country, gender, style, minAge, maxAge, search } = parsed.data;
+  const { country, gender, style, level, minAge, maxAge, search } = parsed.data;
   const currentYear = new Date().getFullYear();
 
   const conditions: SQL[] = [eq(artistsTable.isVerified, "approved"), HAS_PUBLIC_WORK];
   if (country) conditions.push(eq(artistsTable.country, country));
   if (gender) conditions.push(eq(artistsTable.gender, gender));
-  if (style) conditions.push(eq(artistsTable.style, style));
+  if (style) conditions.push(hasWorkInStyle(style));
+  if (level) conditions.push(eq(artistsTable.level, level));
   if (minAge != null) conditions.push(lte(artistsTable.birthYear, currentYear - minAge));
   if (maxAge != null) conditions.push(gte(artistsTable.birthYear, currentYear - maxAge));
   if (search) conditions.push(ilike(artistsTable.name, `%${search}%`));
@@ -63,6 +104,7 @@ router.get("/artists", async (req, res): Promise<void> => {
       age: sql<number>`(${currentYear} - ${artistsTable.birthYear})`,
       gender: artistsTable.gender,
       style: artistsTable.style,
+      level: artistsTable.level,
       photoUrl: artistsTable.photoUrl,
       coverImageUrl: COVER_IMAGE,
       shortBio: artistsTable.shortBio,
@@ -101,6 +143,7 @@ router.get("/artists/:id", async (req, res): Promise<void> => {
       age: sql<number>`(${currentYear} - ${artistsTable.birthYear})`,
       gender: artistsTable.gender,
       style: artistsTable.style,
+      level: artistsTable.level,
       photoUrl: artistsTable.photoUrl,
       coverImageUrl: COVER_IMAGE,
       shortBio: artistsTable.shortBio,

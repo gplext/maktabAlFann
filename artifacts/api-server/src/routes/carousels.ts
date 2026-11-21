@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, siteCarouselsTable, galleriesTable } from "@workspace/db";
 import { requireAdminSession } from "./admin-auth";
 import {
-  CAROUSELS, MODES, SCREEN, carouselDef, candidates, generatePool, measure, resolveIds,
+  CAROUSELS, MODES, SCREEN, carouselDef, candidates, generatePool, measure, resolveIds, showable,
   type CarouselDef, type CarouselMode,
 } from "../lib/carousels";
 import { slide16x9, slideHash, warmSlides } from "../lib/slides";
@@ -76,7 +76,7 @@ router.get("/carousels/:key", async (req, res) => {
   const row = await savedRow(def.key);
   const configured = !!row && row.items.length > 0;
   const ids = configured ? row!.items.slice(0, row!.showCount) : await defaultIds(def);
-  const items = (await resolveIds(def, ids)).map((it) => ({
+  const items = (await showable(def, await resolveIds(def, ids))).map((it) => ({
     ...it,
     // Paintings: the 16:9 version the carousel displays (made from the original if it isn't 16:9 already).
     slideUrl: def.kind === "artwork" ? `/api/carousels/slide/${def.key}/${it.id}?h=${slideHash(it.imageUrl)}` : it.imageUrl,

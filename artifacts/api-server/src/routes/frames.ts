@@ -1,71 +1,36 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, sql } from "drizzle-orm";
 import {
-  db, frameProfilesTable, frameCompatibilityTable, surfaceFinishesTable, baseTypesTable, shopItemsTable, artworksTable, toMoney,
+  db, frameProfilesTable, surfaceFinishesTable, shopItemsTable, artworksTable, toMoney,
+  type FrameProfile, type ShopItem,
 } from "@workspace/db";
 import { requireAdminSession } from "./admin-auth";
-import { framesForArtworks } from "../lib/frames";
+import {
+  framesForArtworks, isFrameType, finishOf, widthOf, mountOf, profileFor,
+  FINISHES, WIDTHS, MOUNTS, type FinishKey, type WidthKey, type MountKey,
+} from "../lib/frames";
 
 /**
- * Frames: profiles (mouldings), compatibility rules, surface finishes, support properties,
- * frame product details — and the public "which frames fit this artwork" endpoint.
+ * Frames: the public "frames for this artwork" endpoint, and the simple Admin → Frames list.
+ * A frame = name, finish, width, mount, glass, price per metre, on/off.
  */
 const router: IRouter = Router();
 
-const int = (v: unknown, { min = 0, max = 100000, nullable = false } = {}): number | null | undefined => {
-  if (v === undefined) return undefined;
-  if (v === null || v === "") return nullable ? null : undefined;
-  const n = Math.round(Number(v));
-  if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Value ${String(v)} is out of range.`);
-  return n;
-};
-const num01 = (v: unknown) => (v === undefined ? undefined : Math.min(1, Math.max(0, Number(v) || 0)));
-const hex = (v: unknown) => (v === undefined ? undefined : /^#[0-9a-fA-F]{6}$/.test(String(v)) ? String(v) : (() => { throw new Error("Colours must look like #A1B2C3."); })());
-const oneOf = <T extends string>(v: unknown, list: readonly T[]) => (v === undefined ? undefined : list.includes(v as T) ? (v as T) : (() => { throw new Error(`Must be one of: ${list.join(", ")}.`); })());
-const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => async (req: Request, res: Response) => {
-  try { await fn(req, res); } catch (e: any) {
-    if (String(e?.message ?? "").includes("unique")) return void res.status(409).json({ error: "That name is already used." });
-    res.status(400).json({ error: e?.message ?? "Invalid request." });
-  }
+  try { await fn(req, res); } catch (e: any) { res.status(400).json({ error: e?.message ?? "Invalid request." }); }
 };
-
-const STYLES = ["standard", "thin", "wide", "enclosing", "floater"] as const;
-const MATERIALS = ["wood", "metal", "polystyrene", "other"] as const;
-const SHAPES = ["flat", "bevel", "rounded", "ornate"] as const;
-const RIGIDITY = ["rigid", "flexible", "loose_sheet"] as const;
-const GLAZING = ["none", "glass", "acrylic", "anti_reflective"] as const;
-const BACKING = ["none", "hardboard", "foam_board"] as const;
-
-function profileFields(b: any, creating: boolean) {
-  const f = clean({
-    name: b.name === undefined ? undefined : String(b.name).trim().slice(0, 80),
-    style: oneOf(b.style, STYLES), material: oneOf(b.material, MATERIALS), profileShape: oneOf(b.profileShape, SHAPES),
-    faceWidthMm: int(b.faceWidthMm, { min: 1, max: 400 }), depthMm: int(b.depthMm, { min: 1, max: 300 }),
-    rebateWidthMm: int(b.rebateWidthMm, { max: 50 }), rebateDepthMm: int(b.rebateDepthMm, { min: 1, max: 300 }),
-    revealGapMm: int(b.revealGapMm, { max: 100 }), revealColourHex: hex(b.revealColourHex),
-    maxLongEdgeMm: int(b.maxLongEdgeMm, { min: 1, max: 10000, nullable: true }), maxWeightG: int(b.maxWeightG, { min: 1, max: 500000, nullable: true }),
-    colourHex: hex(b.colourHex), metalness: num01(b.metalness), roughness: num01(b.roughness),
-    textureUrl: b.textureUrl === undefined ? undefined : (String(b.textureUrl ?? "").trim() || null),
-    active: typeof b.active === "boolean" ? b.active : undefined,
-    displayOrder: int(b.displayOrder, { max: 1000 }),
-  });
-  if (creating) {
-    if (!f.name || f.name.length < 2) throw new Error("Give the profile a name.");
-    if (f.faceWidthMm == null || f.depthMm == null || f.rebateDepthMm == null) throw new Error("Face width, depth and rebate depth are required.");
-  }
-  return f;
-}
+const pick = <T extends string>(v: unknown, keys: readonly T[], label: string): T | undefined => {
+  if (v === undefined) return undefined;
+  if (keys.includes(v as T)) return v as T;
+  throw new Error(`${label} must be one of: ${keys.join(", ")}.`);
+};
 
 // ── Public ───────────────────────────────────────────────────────────────────
 router.get("/lookup/surface-finishes", async (_req, res) => {
   res.json(await db.select().from(surfaceFinishesTable).orderBy(asc(surfaceFinishesTable.displayOrder)));
 });
-router.get("/lookup/frame-profiles", async (_req, res) => {
-  res.json(await db.select().from(frameProfilesTable).where(eq(frameProfilesTable.active, true)).orderBy(asc(frameProfilesTable.displayOrder)));
-});
 
-/** Every frame, whether it fits this artwork (and why not), its final size and price. */
+/** Every frame for this artwork: whether it can be framed, the final size and the price. */
 router.get("/artworks/:id/compatible-frames", async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return void res.status(400).json({ error: "Invalid id" });
@@ -75,108 +40,155 @@ router.get("/artworks/:id/compatible-frames", async (req, res) => {
   res.json({ artworkId: id, frames });
 });
 
-// ── Admin: profiles ──────────────────────────────────────────────────────────
-router.get("/admin/frame-profiles", requireAdminSession, async (_req, res) => {
-  res.json(await db.select().from(frameProfilesTable).orderBy(asc(frameProfilesTable.displayOrder), asc(frameProfilesTable.id)));
+// ── Simple frames (Admin, and the public list for the shop) ──────────────────
+type SimpleFrame = {
+  id: number; name: string; finish: FinishKey | "custom"; width: WidthKey; mount: MountKey; glass: boolean;
+  price: number; active: boolean; imageUrl: string;
+  look: { finish: FinishKey | "custom"; colourHex: string; metalness: number; roughness: number; profileShape: string; textureUrl: string | null; faceWidthMm: number };
+};
+const toSimple = (i: ShopItem, p: FrameProfile): SimpleFrame => ({
+  id: i.id, name: i.name, finish: finishOf(p), width: widthOf(p), mount: mountOf(i), glass: i.glazing !== "none",
+  price: Number(i.price), active: i.status === "active", imageUrl: i.imageUrl,
+  look: { finish: finishOf(p), colourHex: p.colourHex, metalness: p.metalness, roughness: p.roughness, profileShape: p.profileShape, textureUrl: p.textureUrl, faceWidthMm: p.faceWidthMm },
 });
-router.post("/admin/frame-profiles", requireAdminSession, wrap(async (req, res) => {
-  const [row] = await db.insert(frameProfilesTable).values(profileFields(req.body ?? {}, true) as any).returning();
-  res.status(201).json(row);
-}));
-router.patch("/admin/frame-profiles/:id", requireAdminSession, wrap(async (req, res) => {
-  const f = profileFields(req.body ?? {}, false);
-  if (!Object.keys(f).length) return void res.status(400).json({ error: "Nothing to change." });
-  const [row] = await db.update(frameProfilesTable).set(f as any).where(eq(frameProfilesTable.id, Number(req.params.id))).returning();
-  if (!row) return void res.status(404).json({ error: "Profile not found." });
-  res.json(row);
-}));
-router.delete("/admin/frame-profiles/:id", requireAdminSession, wrap(async (req, res) => {
-  const id = Number(req.params.id);
-  await db.update(shopItemsTable).set({ frameProfileId: null }).where(eq(shopItemsTable.frameProfileId, id));
-  await db.delete(frameProfilesTable).where(eq(frameProfilesTable.id, id));
-  res.json({ ok: true });
-}));
 
-// ── Admin: compatibility rules ───────────────────────────────────────────────
-router.get("/admin/frame-compatibility", requireAdminSession, async (_req, res) => {
-  res.json(await db.select().from(frameCompatibilityTable).orderBy(asc(frameCompatibilityTable.frameProfileId)));
+async function loadFrames(ids?: number[]) {
+  const items = (await db.select().from(shopItemsTable).orderBy(asc(shopItemsTable.id)))
+    .filter((i) => isFrameType(i.type) && (!ids || ids.includes(i.id)));
+  const profiles = await db.select().from(frameProfilesTable);
+  return items.map((i) => toSimple(i, profileFor(i, profiles).profile));
+}
+
+/** Public: the frames offered to customers, with their look (the shop draws a painting inside each). */
+router.get("/frames", async (_req, res) => {
+  res.json((await loadFrames()).filter((f) => f.active));
 });
-router.post("/admin/frame-compatibility", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const frameProfileId = int(b.frameProfileId, { min: 1 });
-  if (!frameProfileId) throw new Error("Pick a frame profile.");
-  const artCategoryId = int(b.artCategoryId, { min: 1, nullable: true }) ?? null;
-  const baseTypeId = int(b.baseTypeId, { min: 1, nullable: true }) ?? null;
-  if (artCategoryId == null && baseTypeId == null) throw new Error("Pick an art category, a support, or both.");
-  const [row] = await db.insert(frameCompatibilityTable).values({ frameProfileId, artCategoryId, baseTypeId, allow: b.allow !== false }).returning();
-  res.status(201).json(row);
-}));
-router.delete("/admin/frame-compatibility/:id", requireAdminSession, wrap(async (req, res) => {
-  await db.delete(frameCompatibilityTable).where(eq(frameCompatibilityTable.id, Number(req.params.id)));
-  res.json({ ok: true });
-}));
 
-// ── Admin: surface finishes ──────────────────────────────────────────────────
-router.post("/admin/surface-finishes", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const name = String(b.name ?? "").trim().slice(0, 80);
-  if (name.length < 2) throw new Error("Give the finish a name.");
-  const [row] = await db.insert(surfaceFinishesTable).values({ name, glazingOk: b.glazingOk !== false, gloss: num01(b.gloss) ?? 0.3 }).returning();
-  res.status(201).json(row);
-}));
-router.patch("/admin/surface-finishes/:id", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const f = clean({ name: b.name === undefined ? undefined : String(b.name).trim().slice(0, 80), glazingOk: typeof b.glazingOk === "boolean" ? b.glazingOk : undefined, gloss: num01(b.gloss) });
-  const [row] = await db.update(surfaceFinishesTable).set(f).where(eq(surfaceFinishesTable.id, Number(req.params.id))).returning();
-  res.json(row ?? {});
-}));
-router.delete("/admin/surface-finishes/:id", requireAdminSession, wrap(async (req, res) => {
-  const id = Number(req.params.id);
-  await db.update(artworksTable).set({ surfaceFinishId: null }).where(eq(artworksTable.surfaceFinishId, id));
-  await db.delete(surfaceFinishesTable).where(eq(surfaceFinishesTable.id, id));
-  res.json({ ok: true });
-}));
-
-// ── Admin: support (base type) properties ────────────────────────────────────
-router.post("/admin/base-types", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const name = String(b.name ?? "").trim().slice(0, 80);
-  if (name.length < 2) throw new Error("Give the support a name.");
-  const [row] = await db.insert(baseTypesTable).values({ name, rigidity: oneOf(b.rigidity, RIGIDITY) ?? "rigid" }).returning();
-  res.status(201).json(row);
-}));
-router.patch("/admin/base-types/:id", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const f = clean({
-    rigidity: oneOf(b.rigidity, RIGIDITY),
-    needsStretcher: typeof b.needsStretcher === "boolean" ? b.needsStretcher : undefined,
-    needsGlazing: typeof b.needsGlazing === "boolean" ? b.needsGlazing : undefined,
-    needsBacking: typeof b.needsBacking === "boolean" ? b.needsBacking : undefined,
-    typicalThicknessMm: int(b.typicalThicknessMm, { max: 200, nullable: true }),
-  });
-  if (!Object.keys(f).length) return void res.status(400).json({ error: "Nothing to change." });
-  const [row] = await db.update(baseTypesTable).set(f).where(eq(baseTypesTable.id, Number(req.params.id))).returning();
-  res.json(row ?? {});
-}));
-
-// ── Admin: frame product details (a shop item of type "Frames") ──────────────
-router.patch("/admin/shop/items/:id/frame", requireAdminSession, wrap(async (req, res) => {
-  const b = req.body ?? {};
-  const f = clean({
-    frameProfileId: int(b.frameProfileId, { min: 1, nullable: true }),
-    innerWidthMm: int(b.innerWidthMm, { min: 1, max: 10000, nullable: true }),
-    innerHeightMm: int(b.innerHeightMm, { min: 1, max: 10000, nullable: true }),
-    glazing: oneOf(b.glazing, GLAZING), backing: oneOf(b.backing, BACKING),
-    matWidthMm: int(b.matWidthMm, { max: 300 }), matColourHex: hex(b.matColourHex),
-    revealGapMm: int(b.revealGapMm, { max: 100, nullable: true }),
-    pricePerMetre: b.pricePerMetre === undefined ? undefined : (b.pricePerMetre === null || b.pricePerMetre === "" ? null : toMoney(Number(b.pricePerMetre))),
-  });
-  if ((f.innerWidthMm == null) !== (f.innerHeightMm == null) && ("innerWidthMm" in f || "innerHeightMm" in f)) {
-    throw new Error("Give both opening width and height, or leave both empty for made-to-measure.");
+/**
+ * Public: strong paintings to show inside frame previews (shop cards, Admin).
+ * The Artists-page slide paintings first, then the most valuable landscape paintings; one per artist.
+ */
+let previewCache: { at: number; rows: { id: number; title: string; imageUrl: string }[] } | null = null;
+router.get("/frames/preview-paintings", async (_req, res) => {
+  if (!previewCache || Date.now() - previewCache.at > 10 * 60_000) {
+    const r = await db.execute(sql`
+      SELECT id, title, "imageUrl" FROM (
+        SELECT DISTINCT ON (a.artist_id) a.id, a.title, a.image_url AS "imageUrl", a.artist_slide AS slide,
+               coalesce(a.display_price, a.expected_price, 0) AS value
+        FROM artworks a
+        JOIN artists ar ON ar.id = a.artist_id AND ar.is_verified = 'approved'
+        JOIN art_categories c ON c.id = a.art_category_id AND lower(c.name) = 'paintings'
+        WHERE a.status = 'approved' AND a.image_url <> '' AND a.image_url NOT LIKE '%placehold.co%'
+          AND a.width_cm > 0 AND a.height_cm > 0 AND a.width_cm::float / a.height_cm BETWEEN 1.2 AND 1.8
+        ORDER BY a.artist_id, a.artist_slide DESC, coalesce(a.display_price, a.expected_price, 0) DESC
+      ) best
+      ORDER BY slide DESC, value DESC
+      LIMIT 12`);
+    previewCache = { at: Date.now(), rows: r.rows as any };
   }
-  const [row] = await db.update(shopItemsTable).set(f as any).where(eq(shopItemsTable.id, Number(req.params.id))).returning();
-  if (!row) return void res.status(404).json({ error: "Frame not found." });
-  res.json(row);
+  res.json(previewCache.rows);
+});
+
+/** The profile (moulding) fields that follow from the simple choices. */
+function profileFrom(finish: FinishKey | undefined, width: WidthKey | undefined) {
+  return {
+    ...(finish ? { colourHex: FINISHES[finish].colourHex, metalness: FINISHES[finish].metalness, roughness: FINISHES[finish].roughness, profileShape: FINISHES[finish].profileShape, material: FINISHES[finish].material, textureUrl: null } : {}),
+    ...(width ? { faceWidthMm: WIDTHS[width].faceWidthMm, depthMm: WIDTHS[width].depthMm, style: width, rebateDepthMm: WIDTHS[width].depthMm - 5 } : {}),
+  };
+}
+function itemFrom(b: any) {
+  const mount = pick(b.mount, Object.keys(MOUNTS) as MountKey[], "Mount");
+  const price = b.price;
+  if (price !== undefined && (price === null || price === "" || !(Number(price) >= 0))) throw new Error("Give the frame a price (0 or more).");
+  const name = b.name === undefined ? undefined : String(b.name).trim().slice(0, 80);
+  if (name !== undefined && name.length < 2) throw new Error("Give the frame a name.");
+  return Object.fromEntries(Object.entries({
+    name,
+    ...(mount ? { matWidthMm: MOUNTS[mount].matWidthMm, matColourHex: MOUNTS[mount].matColourHex } : {}),
+    glazing: b.glass === undefined ? undefined : b.glass ? "glass" : "none",
+    price: price === undefined ? undefined : toMoney(Number(price)),
+    status: typeof b.active === "boolean" ? (b.active ? "active" : "inactive") : undefined,
+  }).filter(([, v]) => v !== undefined));
+}
+
+router.get("/admin/frames", requireAdminSession, async (_req, res) => {
+  res.json({
+    frames: await loadFrames(),
+    options: {
+      finishes: Object.entries(FINISHES).map(([value, f]) => ({ value, label: f.label, colourHex: f.colourHex, metalness: f.metalness })),
+      widths: Object.entries(WIDTHS).map(([value, w]) => ({ value, label: w.label, mm: w.faceWidthMm })),
+      mounts: Object.entries(MOUNTS).map(([value, m]) => ({ value, label: m.label, colourHex: m.matColourHex })),
+    },
+  });
+});
+
+router.post("/admin/frames", requireAdminSession, wrap(async (req, res) => {
+  const b = req.body ?? {};
+  const finish = pick(b.finish ?? "black", Object.keys(FINISHES) as FinishKey[], "Finish")!;
+  const width = pick(b.width ?? "standard", Object.keys(WIDTHS) as WidthKey[], "Width")!;
+  const fields = itemFrom({ mount: "none", glass: false, active: true, ...b });
+  if (!fields.name) throw new Error("Give the frame a name.");
+  if (fields.price === undefined) throw new Error("Give the frame a price.");
+  const id = await db.transaction(async (tx) => {
+    const [item] = await tx.insert(shopItemsTable).values({
+      ...(fields as any), type: "Frames", isAddon: true, backing: "hardboard", stock: 0, pricePerMetre: null,
+      description: `${FINISHES[finish].label} frame, ${WIDTHS[width].label.toLowerCase()} width, made to measure.`,
+    }).returning();
+    const [prof] = await tx.insert(frameProfilesTable).values({
+      name: `Frame #${item!.id}`, rebateWidthMm: 5, revealGapMm: 0, active: true, ...(profileFrom(finish, width) as any),
+    }).returning();
+    await tx.update(shopItemsTable).set({ frameProfileId: prof!.id }).where(eq(shopItemsTable.id, item!.id));
+    return item!.id;
+  });
+  res.status(201).json((await loadFrames([id]))[0]);
+}));
+
+router.patch("/admin/frames/:id", requireAdminSession, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body ?? {};
+  const [item] = await db.select().from(shopItemsTable).where(eq(shopItemsTable.id, id));
+  if (!item || !isFrameType(item.type)) return void res.status(404).json({ error: "Frame not found." });
+  const finish = b.finish === "custom" ? undefined : pick(b.finish, Object.keys(FINISHES) as FinishKey[], "Finish");
+  const width = pick(b.width, Object.keys(WIDTHS) as WidthKey[], "Width");
+  const fields = itemFrom(b);
+  const profiles = await db.select().from(frameProfilesTable);
+  const { profile, saved } = profileFor(item, profiles);
+  await db.transaction(async (tx) => {
+    let profileId = saved ? profile.id : null;
+    if (profileId == null) {
+      // An older frame without a saved moulding: save the look it was shown with, plus any change.
+      const { id: _id, ...guess } = profile;
+      const [prof] = await tx.insert(frameProfilesTable).values({ ...guess, name: `Frame #${item.id}`, ...(profileFrom(finish, width) as any) }).returning();
+      profileId = prof!.id;
+    } else if (finish || width) {
+      await tx.update(frameProfilesTable).set({ ...(profileFrom(finish, width) as any), active: true }).where(eq(frameProfilesTable.id, profileId));
+    }
+    // Fixed price; every frame is made to measure (no old fixed opening size).
+    await tx.update(shopItemsTable).set({ ...(fields as any), frameProfileId: profileId, pricePerMetre: null, innerWidthMm: null, innerHeightMm: null, revealGapMm: null })
+      .where(eq(shopItemsTable.id, id));
+  });
+  res.json((await loadFrames([id]))[0]);
+}));
+
+/** Deletes the frame; one that is in past orders is switched off instead. */
+router.delete("/admin/frames/:id", requireAdminSession, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [item] = await db.select().from(shopItemsTable).where(eq(shopItemsTable.id, id));
+  if (!item || !isFrameType(item.type)) return void res.status(404).json({ error: "Frame not found." });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(shopItemsTable).where(eq(shopItemsTable.id, id));
+      // Remove its moulding only if no other frame uses it.
+      if (item.frameProfileId != null) {
+        const others = await tx.select({ id: shopItemsTable.id }).from(shopItemsTable).where(eq(shopItemsTable.frameProfileId, item.frameProfileId));
+        if (!others.length) await tx.delete(frameProfilesTable).where(eq(frameProfilesTable.id, item.frameProfileId));
+      }
+    });
+    res.json({ ok: true, deleted: true });
+  } catch {
+    await db.update(shopItemsTable).set({ status: "inactive" }).where(eq(shopItemsTable.id, id));
+    res.json({ ok: true, deleted: false, message: "This frame is in past orders, so it was switched off instead of deleted." });
+  }
 }));
 
 export default router;

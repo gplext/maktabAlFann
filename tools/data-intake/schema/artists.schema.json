@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "maktaba-al-fann/artists.schema.json",
+  "title": "Artist records",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "key",
+      "name",
+      "country",
+      "dataSource"
+    ],
+    "properties": {
+      "key": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+        "description": "Unique id: lowercase letters, digits and dashes. Never change it once used."
+      },
+      "name": {
+        "type": "string",
+        "description": "Name as shown on the site."
+      },
+      "otherNames": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Other spellings, used to catch duplicates."
+      },
+      "country": {
+        "type": "string"
+      },
+      "basedIn": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "City the artist lives or works in."
+      },
+      "birthYear": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1800,
+        "maximum": 2100
+      },
+      "deathYear": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1800,
+        "maximum": 2100,
+        "description": "Empty for living artists."
+      },
+      "birthPlace": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "gender": {
+        "enum": [
+          "male",
+          "female",
+          "other",
+          null,
+          ""
+        ]
+      },
+      "style": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Main style. Should match a style on the site.",
+        "examples": [
+          "Impressionism",
+          "Cubism",
+          "Realism",
+          "Abstract",
+          "Expressionism",
+          "Surrealism",
+          "Minimalism",
+          "Contemporary",
+          "Mughal Miniature",
+          "Folk Art"
+        ]
+      },
+      "level": {
+        "enum": [
+          "master",
+          "emerging",
+          "student",
+          null,
+          ""
+        ],
+        "description": "master = established, well-known artist; emerging = practising artist building a career; student = art student (e.g. undergraduate) or no experience yet. Filters the Artists page. Empty imports as emerging."
+      },
+      "shortBio": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 300,
+        "description": "One or two sentences."
+      },
+      "biography": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "influences": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "education": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "awards": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "exhibitions": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "websiteUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "uri"
+          },
+          {
+            "maxLength": 0
+          }
+        ]
+      },
+      "contactEmail": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "email"
+          },
+          {
+            "maxLength": 0
+          }
+        ],
+        "description": "Only with the artist's permission."
+      },
+      "photoUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "anyOf": [
+          {
+            "format": "uri"
+          },
+          {
+            "maxLength": 0
+          }
+        ],
+        "description": "Portrait. Must be ours, licensed or permitted."
+      },
+      "photoCredit": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "photoLicense": {
+        "enum": [
+          "permission",
+          "public-domain",
+          "CC0",
+          "CC BY",
+          "CC BY-SA",
+          "own",
+          null,
+          ""
+        ],
+        "description": "Required when photoUrl is set."
+      },
+      "galleryKeys": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Galleries that represent the artist (keys from galleries)."
+      },
+      "dataSource": {
+        "enum": [
+          "web",
+          "partner-gallery",
+          "artist",
+          "staff"
+        ],
+        "description": "Where this row came from."
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Links that back up the facts."
+      },
+      "verified": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "true once the artist or gallery confirmed the details."
+      },
+      "notes": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "madeUpFields": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Fields holding INVENTED test values (not real data). The importer refuses to load these into any database other than the local one. Replace them with real data and empty this list before going live."
+      }
+    }
+  }
+}

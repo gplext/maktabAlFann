@@ -9,7 +9,9 @@ import {
 import { useParams } from "wouter";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useMemo, useState } from "react";
-import { Loader2, Package, MapPin, Tag, Info } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Package, MapPin, Tag, Info, Frame, Sofa } from "lucide-react";
+import FrameViewerModal, { type FrameOption } from "@/components/FrameViewerModal";
 import { Link } from "wouter";
 import { useCartSession } from "@/hooks/useCartSession";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +39,19 @@ export default function ArtworkDetail() {
   const sessionId = useCartSession();
   const addToCart = useAddToCart();
   const { toast } = useToast();
+
+  // 3D view: the painting with any of the site's frames, close up or in a living room.
+  const [viewer, setViewer] = useState<null | "closeup" | "room">(null);
+  const { data: frameData } = useQuery<{ frames: { compatible: boolean; spec: FrameOption["spec"] & { shopItemId: number; name: string; price: number } }[] }>({
+    queryKey: ["/artworks/compatible-frames", Number(id)],
+    queryFn: async () => { const r = await fetch(`/api/artworks/${id}/compatible-frames`); if (!r.ok) throw new Error("frames"); return r.json(); },
+    enabled: viewer !== null,
+    staleTime: 60_000,
+  });
+  const frameOptions = useMemo<FrameOption[]>(
+    () => (frameData?.frames ?? []).filter((f) => f.compatible).map((f) => ({ id: f.spec.shopItemId, name: f.spec.name, price: f.spec.price, spec: f.spec })),
+    [frameData],
+  );
 
   const toggleAddon = (addonId: number) => {
     setSelectedAddonIds((prev) =>
@@ -100,7 +115,8 @@ export default function ArtworkDetail() {
 
   // All artwork form fields for right column
   const allDetails: { label: string; value: string | null | undefined }[] = [
-    { label: "Short Description", value: artwork.shortDescription },
+    // The long description below already opens with it.
+    { label: "Short Description", value: artwork.history?.trim() ? null : artwork.shortDescription },
     { label: "Theme", value: artwork.theme },
     { label: "Art type", value: artwork.artCategory },
     { label: "Style", value: artwork.artStyle },
@@ -147,7 +163,31 @@ export default function ArtworkDetail() {
           <motion.div style={{ y: imgY }} className="relative aspect-[4/3] md:aspect-[16/9]">
             <img src={artwork.imageUrl} alt={`${artwork.title} — ${artwork.artStyle || artwork.artCategory} by ${artwork.artistName}`} fetchPriority="high" className="w-full h-full object-contain" />
           </motion.div>
+          {/* 3D: framed close-up and "see it in a room" (not for sculptures and installations) */}
+          {artwork.imageUrl && !/sculpt|install/i.test(artwork.artCategory ?? "") && (
+            <div className="absolute bottom-4 right-4 md:bottom-6 md:right-6 flex gap-2 z-10">
+              <button onClick={() => setViewer("closeup")}
+                className="flex items-center gap-2 bg-background/90 backdrop-blur border border-border px-4 py-2.5 text-[11px] uppercase tracking-widest text-foreground hover:border-secondary hover:text-secondary transition-colors shadow-sm">
+                <Frame size={14} /> View framed in 3D
+              </button>
+              <button onClick={() => setViewer("room")}
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 text-[11px] uppercase tracking-widest hover:bg-primary/90 transition-colors shadow-sm">
+                <Sofa size={14} /> See it in a room
+              </button>
+            </div>
+          )}
         </div>
+
+        <FrameViewerModal
+          open={viewer !== null}
+          onClose={() => setViewer(null)}
+          imageUrl={artwork.imageUrl}
+          title={artwork.title}
+          artistName={artwork.artistName}
+          artMm={artwork.widthCm && artwork.heightCm ? { widthMm: artwork.widthCm * 10, heightMm: artwork.heightCm * 10, depthMm: 20 } : null}
+          frames={frameOptions}
+          initialMode={viewer ?? "closeup"}
+        />
 
         {/* ── Two-column body ── */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-16 mb-24">
@@ -267,6 +307,11 @@ export default function ArtworkDetail() {
                 <span className="w-8 h-[1px] bg-secondary" />
                 About This Work
               </h2>
+              {artwork.history?.trim() && (
+                <div className="space-y-4 mb-10 text-[15px] leading-relaxed text-foreground/80 max-w-3xl">
+                  {artwork.history.trim().split(/\n\s*\n/).map((para, i) => <p key={i}>{para}</p>)}
+                </div>
+              )}
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-5">
                 {allDetails.map(({ label, value }) => (
                   <div key={label} className={label === "Short Description" ? "sm:col-span-2" : ""}>

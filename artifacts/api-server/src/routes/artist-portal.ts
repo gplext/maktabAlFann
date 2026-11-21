@@ -22,6 +22,7 @@ import { validateClassification, deriveDisplayPrice } from "../lib/classificatio
 import { eq, and, sql, inArray, desc } from "drizzle-orm";
 import { computeRiskScore } from "../lib/risk-score";
 import { formatZodError } from "../lib/validation";
+import { parseLevel } from "../lib/artist-level";
 
 const router: IRouter = Router();
 
@@ -304,7 +305,7 @@ router.post("/artist-portal/register", requireArtistAuth, async (req, res) => {
     name, country, birthYear, gender, style,
     photoUrl, shortBio, biography, influences,
     awards, exhibitions, contactEmail, websiteUrl,
-    saying, sayingAuthor, phone,
+    saying, sayingAuthor, phone, level,
   } = req.body;
 
   if (!name || !shortBio || !style)
@@ -340,6 +341,7 @@ router.post("/artist-portal/register", requireArtistAuth, async (req, res) => {
       birthYear: birthYear ? Number(birthYear) : new Date().getFullYear(),
       gender: gender ?? "",
       style: style ?? "",
+      level: parseLevel(level),
       photoUrl: photoUrl ?? "",
       shortBio: shortBio ?? "",
       biography: biography ?? shortBio ?? "",

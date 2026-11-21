@@ -4,6 +4,20 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Package } from "lucide-react";
 import { usePageMeta, SITE_NAME } from "@/lib/seo";
+import { useQuery } from "@tanstack/react-query";
+import { FramedThumb, usePreviewPaintings, type ThumbLook } from "@/components/framed-thumb";
+import { formatMoney } from "@/lib/money";
+
+/** Frames offered to customers, with their look, so each card can show a painting inside its frame. */
+type FrameInfo = { id: number; mount: string; glass: boolean; price: number; look: ThumbLook };
+function useFrameLooks() {
+  const { data } = useQuery<FrameInfo[]>({
+    queryKey: ["/frames"],
+    queryFn: async () => { const r = await fetch("/api/frames"); return r.ok ? r.json() : []; },
+    staleTime: 5 * 60_000,
+  });
+  return useMemo(() => new Map((data ?? []).map((f) => [f.id, f])), [data]);
+}
 
 const TYPES = ["All", "Stationary", "Frames", "Hanging Support"] as const;
 type FilterType = (typeof TYPES)[number];
@@ -115,6 +129,9 @@ export default function Shop() {
 }
 
 function ItemGrid({ items }: { items: ShopItem[] }) {
+  const frames = useFrameLooks();
+  const paintings = usePreviewPaintings();
+  let n = 0;
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
       {items.map((item, i) => (
@@ -124,18 +141,23 @@ function ItemGrid({ items }: { items: ShopItem[] }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.04, duration: 0.5 }}
         >
-          <ShopCard item={item} />
+          <ShopCard item={item} frame={frames.get(item.id)}
+            painting={frames.has(item.id) && paintings.length ? paintings[n++ % paintings.length]!.imageUrl : undefined} />
         </motion.div>
       ))}
     </div>
   );
 }
 
-function ShopCard({ item }: { item: ShopItem }) {
+function ShopCard({ item, frame, painting }: { item: ShopItem; frame?: FrameInfo; painting?: string }) {
   return (
     <div className="group bg-card border border-border flex flex-col hover:border-primary/40 transition-colors duration-300">
       <div className="aspect-square overflow-hidden bg-background relative">
-        {item.imageUrl ? (
+        {frame ? (
+          // A frame is shown around one of the collection's paintings.
+          <FramedThumb look={frame.look} mount={frame.mount} glass={frame.glass} imageUrl={painting}
+            className="w-full h-full transition-transform duration-700 group-hover:scale-105" />
+        ) : item.imageUrl ? (
           <img loading="lazy" decoding="async"
             src={item.imageUrl}
             alt={item.name}
@@ -169,6 +191,7 @@ function ShopCard({ item }: { item: ShopItem }) {
             {item.description}
           </p>
         )}
+        {frame && <p className="text-sm font-display text-secondary mb-3">{formatMoney(frame.price)} <span className="text-[10px] text-foreground/45 uppercase tracking-widest">made to measure</span></p>}
         <button className="mt-auto w-full py-2.5 border border-primary text-primary text-[9px] uppercase tracking-[0.25em] font-display hover:bg-primary hover:text-primary-foreground transition-all duration-200">
           Enquire
         </button>

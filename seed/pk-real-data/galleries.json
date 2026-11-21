@@ -1,0 +1,57 @@
+[
+  {
+    "key": "koel-gallery",
+    "name": "Koel Gallery",
+    "city": "Karachi",
+    "country": "Pakistan",
+    "address": "Karachi, Pakistan",
+    "description": "Koel Gallery is a contemporary art gallery in Karachi showing painting, sculpture, photography and new media by Pakistani artists, from established names to recent graduates.",
+    "foundedYear": 1977,
+    "websiteUrl": "https://koelgallery.com",
+    "email": "koel-gallery@example.test",
+    "phone": "+92 000 0000000",
+    "logoUrl": "https://koelgallery.com/wp-content/uploads/2020/01/logo.png",
+    "isPartner": true,
+    "dataSource": "partner-gallery",
+    "sources": [
+      "https://koelgallery.com"
+    ],
+    "verified": false,
+    "notes": "Confirm details with the gallery.",
+    "madeUpFields": [
+      "foundedYear",
+      "description",
+      "address",
+      "email",
+      "phone"
+    ]
+  },
+  {
+    "key": "ejaz-art-gallery",
+    "name": "Ejaz Art Gallery",
+    "city": "Lahore",
+    "country": "Pakistan",
+    "address": "Lahore, Pakistan",
+    "description": "Ejaz Art Gallery in Lahore shows and sells modern and contemporary Pakistani painting, from the masters of the 20th century to emerging artists.",
+    "foundedYear": 1990,
+    "websiteUrl": "https://ejazartgallery.com",
+    "email": "ejaz-art-gallery@example.test",
+    "phone": "+92 000 0000000",
+    "logoUrl": "https://ejazartgallery.com/wp-content/uploads/2023/08/art-dark-logo.svg",
+    "isPartner": true,
+    "dataSource": "partner-gallery",
+    "sources": [
+      "https://ejazartgallery.com",
+      "https://myartguide.com/pk/art-galleries/ejaz-art-gallery/2"
+    ],
+    "verified": false,
+    "notes": null,
+    "madeUpFields": [
+      "foundedYear",
+      "description",
+      "address",
+      "email",
+      "phone"
+    ]
+  }
+]

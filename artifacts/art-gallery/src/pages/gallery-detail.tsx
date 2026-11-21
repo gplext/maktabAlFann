@@ -3,6 +3,10 @@ import { Link, useParams } from "wouter";
 import { Loader2, MapPin, ExternalLink, ArrowLeft } from "lucide-react";
 import { usePageMeta, SITE_NAME, clip } from "@/lib/seo";
 import { GalleryArtworkCard, type Gallery } from "@/pages/galleries";
+import { ArtCarousel } from "@/components/art-carousel";
+
+/** A gallery needs at least this many paintings before its page opens with a carousel. */
+const MIN_CAROUSEL_PAINTINGS = 6;
 
 /** One partner gallery's own page: /gallery/<slug>, showing only that gallery's artworks. */
 export default function GalleryDetail() {
@@ -41,6 +45,22 @@ export default function GalleryDetail() {
         <Link href="/gallery" className="inline-flex items-center gap-2 text-secondary hover:text-primary transition-colors mb-10 uppercase tracking-widest text-xs">
           <ArrowLeft size={14} /> All galleries
         </Link>
+
+        {/* The gallery's paintings as a sliding row (same as "More from the Collection" on the home page).
+            Left out when the gallery has too few paintings for a carousel. */}
+        {(() => {
+          // Top paintings: the most valuable first (by price), then the rest; up to 12.
+          const paintings = g.artworks
+            .filter((a) => a.artCategory === "Paintings" && a.imageUrl && !a.imageUrl.includes("placehold.co"))
+            .sort((x, y) => (y.displayPrice ?? -1) - (x.displayPrice ?? -1) || x.id - y.id)
+            .slice(0, 12)
+            .map((a) => ({ id: a.id, title: a.title, artistName: a.artistName, imageUrl: a.imageUrl, artType: a.artStyle }));
+          return paintings.length >= MIN_CAROUSEL_PAINTINGS ? (
+            <section className="mb-14" aria-label={`Paintings from ${g.name}`}>
+              <ArtCarousel items={paintings} endless speed={20} />
+            </section>
+          ) : null;
+        })()}
 
         <header className="mb-14 flex flex-col md:flex-row md:items-end gap-6 border-b border-border pb-10">
           {g.logoUrl && (

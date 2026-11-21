@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploader } from "@/components/image-uploader";
+import { ARTIST_LEVEL_OPTIONS } from "@/lib/artist-levels";
 
 function toStorageUrl(p: string) {
   return `/api/storage${p.startsWith("/") ? p : `/${p}`}`;
@@ -56,7 +57,7 @@ const GALLERY_MENU: { key: GalleryTab; label: string; icon: React.ReactNode }[] 
 ];
 
 const EMPTY_ARTIST_FORM = {
-  name: "", style: "", country: "Pakistan",
+  name: "", style: "", level: "emerging", country: "Pakistan",
   birthYear: String(new Date().getFullYear() - 30),
   gender: "", shortBio: "", biography: "",
   influences: "", websiteUrl: "", contactEmail: "",
@@ -235,6 +236,7 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
         setArtistForm({
           name: a.name ?? "",
           style: a.style ?? "",
+          level: a.level ?? "emerging",
           country: a.country ?? "Pakistan",
           birthYear: String(a.birthYear ?? new Date().getFullYear() - 30),
           gender: a.gender ?? "",
@@ -742,6 +744,12 @@ export default function GalleryPortal({ onSwitchMode, hasArtistProfile }: Galler
                   <div>
                     <label className={lbl}>Art Style *</label>
                     <input className={inp} value={artistForm.style} onChange={(e) => setArtistField("style", e.target.value)} placeholder="e.g. Miniature Painting" />
+                  </div>
+                  <div>
+                    <label className={lbl}>Level *</label>
+                    <select className={inp} value={artistForm.level} onChange={(e) => setArtistField("level", e.target.value)}>
+                      {ARTIST_LEVEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.hint}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className={lbl}>Country</label>

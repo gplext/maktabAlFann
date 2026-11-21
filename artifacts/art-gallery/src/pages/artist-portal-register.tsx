@@ -4,6 +4,7 @@ import { useUser } from "@/lib/auth";
 import { Loader2, User, AlertTriangle, Link as LinkIcon, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploader } from "@/components/image-uploader";
+import { ARTIST_LEVEL_OPTIONS } from "@/lib/artist-levels";
 
 type Field = { key: string; label: string; placeholder: string; type?: string; textarea?: boolean; required?: boolean };
 
@@ -210,6 +211,24 @@ export default function ArtistPortalRegister() {
               </div>
             </div>
           )}
+
+          {/* Level: decides where the profile is listed on the Artists page (Masters / Emerging / Students). */}
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-xs uppercase tracking-widest text-foreground/60 mb-1">
+              Your level<span className="text-secondary ml-1">*</span>
+            </legend>
+            {ARTIST_LEVEL_OPTIONS.map((o) => (
+              <label key={o.value}
+                className={`flex items-start gap-3 border px-4 py-3 cursor-pointer transition-colors ${form.level === o.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
+                <input type="radio" name="level" value={o.value} required checked={form.level === o.value}
+                  onChange={() => setForm((f) => ({ ...f, level: o.value }))} className="mt-1 accent-[hsl(var(--primary))]" />
+                <span>
+                  <span className="block text-sm font-display text-foreground">{o.label}</span>
+                  <span className="block text-xs text-foreground/60">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
 
           {/* Remaining fields (skip name — already rendered above) */}
           {FIELDS.filter((f) => f.key !== "name").map(({ key, label, placeholder, type, textarea, required }) => (

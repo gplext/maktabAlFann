@@ -1,0 +1,110 @@
+// Single source of truth for the data-intake format.
+// schema/*.json, templates/*.csv and validate.mjs are all built from this file.
+//
+// type: string | text | int | number | bool | url | email | year | enum | key | keyref | list
+//   list = several values; in CSV separate them with " | "
+// required:   true  -> the row can't be imported without it (ERROR)
+// dbRequired: true  -> the database column is NOT NULL; empty imports as "" but is reported (WARNING)
+// lookup:     name of a list in lookups.json; unknown values are reported (WARNING: new value)
+
+export const LIST_SEPARATOR = "|";
+
+export const ENTITIES = {
+  artists: {
+    title: "Artist",
+    file: "artists",
+    fields: [
+      { name: "key", type: "key", required: true, example: "sadequain", doc: "Unique id: lowercase letters, digits and dashes. Never change it once used." },
+      { name: "name", type: "string", required: true, example: "Sadequain", doc: "Name as shown on the site." },
+      { name: "otherNames", type: "list", example: "Syed Sadequain Ahmed Naqvi | Sadequain Naqqash", doc: "Other spellings, used to catch duplicates." },
+      { name: "country", type: "string", required: true, example: "Pakistan" },
+      { name: "basedIn", type: "string", example: "Karachi", doc: "City the artist lives or works in." },
+      { name: "birthYear", type: "year", dbRequired: true, example: "1923" },
+      { name: "deathYear", type: "year", example: "1987", doc: "Empty for living artists." },
+      { name: "birthPlace", type: "string", example: "Amroha" },
+      { name: "gender", type: "enum", values: ["male", "female", "other"], dbRequired: true, example: "male" },
+      { name: "style", type: "string", lookup: "styles", dbRequired: true, example: "Calligraphy", doc: "Main style. Should match a style on the site." },
+      { name: "level", type: "enum", values: ["master", "emerging", "student"], dbRequired: true, example: "master", doc: "master = established, well-known artist; emerging = practising artist building a career; student = art student (e.g. undergraduate) or no experience yet. Filters the Artists page. Empty imports as emerging." },
+      { name: "shortBio", type: "text", dbRequired: true, max: 300, example: "Pakistani painter and calligrapher (1923–1987).", doc: "One or two sentences." },
+      { name: "biography", type: "text", dbRequired: true, example: "Longer biography…" },
+      { name: "influences", type: "text", dbRequired: true, example: "Islamic calligraphy, Picasso" },
+      { name: "education", type: "text", example: "" },
+      { name: "awards", type: "text", example: "Pride of Performance (1960)" },
+      { name: "exhibitions", type: "text", example: "" },
+      { name: "websiteUrl", type: "url", example: "" },
+      { name: "contactEmail", type: "email", example: "", doc: "Only with the artist's permission." },
+      { name: "photoUrl", type: "url", dbRequired: true, example: "", doc: "Portrait. Must be ours, licensed or permitted." },
+      { name: "photoCredit", type: "string", example: "" },
+      { name: "photoLicense", type: "enum", values: ["permission", "public-domain", "CC0", "CC BY", "CC BY-SA", "own"], example: "", doc: "Required when photoUrl is set." },
+      { name: "galleryKeys", type: "list", ref: "galleries", example: "canvas-gallery", doc: "Galleries that represent the artist (keys from galleries)." },
+      { name: "dataSource", type: "enum", values: ["web", "partner-gallery", "artist", "staff"], required: true, example: "web", doc: "Where this row came from." },
+      { name: "sources", type: "list", example: "https://en.wikipedia.org/wiki/Sadequain", doc: "Links that back up the facts." },
+      { name: "verified", type: "bool", example: "false", doc: "true once the artist or gallery confirmed the details." },
+      { name: "notes", type: "text", example: "" },
+      { name: "madeUpFields", type: "list", example: "", doc: "Fields holding INVENTED test values (not real data). The importer refuses to load these into any database other than the local one. Replace them with real data and empty this list before going live." },
+    ],
+  },
+
+  galleries: {
+    title: "Gallery",
+    file: "galleries",
+    fields: [
+      { name: "key", type: "key", required: true, example: "canvas-gallery" },
+      { name: "name", type: "string", required: true, example: "Canvas Gallery" },
+      { name: "city", type: "string", required: true, example: "Karachi" },
+      { name: "country", type: "string", required: true, example: "Pakistan" },
+      { name: "address", type: "text", example: "" },
+      { name: "description", type: "text", dbRequired: true, example: "Contemporary art gallery in Karachi." },
+      { name: "foundedYear", type: "year", example: "" },
+      { name: "websiteUrl", type: "url", example: "https://canvasartgallery.net" },
+      { name: "email", type: "email", example: "" },
+      { name: "phone", type: "string", example: "" },
+      { name: "logoUrl", type: "url", example: "" },
+      { name: "isPartner", type: "bool", example: "false", doc: "true when the gallery has agreed to list with us." },
+      { name: "dataSource", type: "enum", values: ["web", "partner-gallery", "staff"], required: true, example: "web" },
+      { name: "sources", type: "list", example: "https://canvasartgallery.net" },
+      { name: "verified", type: "bool", example: "false" },
+      { name: "notes", type: "text", example: "" },
+      { name: "madeUpFields", type: "list", example: "", doc: "Fields holding INVENTED test values (not real data). The importer refuses to load these into any database other than the local one. Replace them with real data and empty this list before going live." },
+    ],
+  },
+
+  artworks: {
+    title: "Artwork",
+    file: "artworks",
+    fields: [
+      { name: "key", type: "key", required: true, example: "sadequain-seascape-with-three-boats-1940" },
+      { name: "artistKey", type: "keyref", ref: "artists", required: true, example: "sadequain" },
+      { name: "galleryKey", type: "keyref", ref: "galleries", example: "", doc: "Gallery offering or holding it, if any." },
+      { name: "title", type: "string", required: true, example: "Seascape with Three Boats" },
+      { name: "year", type: "year", dbRequired: true, example: "1940" },
+      { name: "yearIsApprox", type: "bool", example: "false", doc: "true for 'circa' dates." },
+      { name: "category", type: "string", lookup: "categories", required: true, example: "Paintings" },
+      { name: "style", type: "string", lookup: "styles", example: "Realism", doc: "Empty = artist's style." },
+      { name: "medium", type: "string", example: "Oil on canvas", doc: "Free text as written by the gallery." },
+      { name: "paintMaterial", type: "string", lookup: "paintMaterials", example: "Oil" },
+      { name: "baseType", type: "string", lookup: "baseTypes", example: "Canvas" },
+      { name: "theme", type: "string", dbRequired: true, example: "Seascape", doc: "Subject in a few words." },
+      { name: "shortDescription", type: "text", dbRequired: true, example: "" },
+      { name: "longDescription", type: "text", example: "", doc: "A few paragraphs about the artwork (blank line between paragraphs). Shown on the artwork page; the first lines appear on the home page." },
+      { name: "widthCm", type: "number", min: 1, max: 5000, example: "" },
+      { name: "heightCm", type: "number", min: 1, max: 5000, example: "" },
+      { name: "depthCm", type: "number", min: 0, max: 1000, example: "" },
+      { name: "framed", type: "bool", example: "" },
+      { name: "availability", type: "enum", values: ["for-sale", "on-request", "sold", "not-for-sale"], required: true, example: "not-for-sale" },
+      { name: "price", type: "number", min: 0, example: "", doc: "Asking price, numbers only." },
+      { name: "currency", type: "enum", values: ["PKR", "USD", "GBP", "AED", "EUR"], example: "PKR" },
+      { name: "featured", type: "bool", example: "false", doc: "true for the best pictures: shown in Stories from Pakistan and as the artist's picture." },
+      { name: "artistSlide", type: "bool", example: "false", doc: "true = the picture used for this artist in the Artists page carousel (a landscape painting). Those artists are shown first." },
+      { name: "heldBy", type: "string", example: "Metropolitan Museum of Art", doc: "Museum or collection that owns it." },
+      { name: "imageUrl", type: "url", example: "" },
+      { name: "imageCredit", type: "string", example: "" },
+      { name: "imageLicense", type: "enum", values: ["permission", "public-domain", "CC0", "CC BY", "CC BY-SA", "own"], example: "", doc: "Required when imageUrl is set." },
+      { name: "dataSource", type: "enum", values: ["web", "partner-gallery", "artist", "staff"], required: true, example: "web" },
+      { name: "sources", type: "list", example: "https://www.wikidata.org/wiki/Q126131201" },
+      { name: "verified", type: "bool", example: "false" },
+      { name: "notes", type: "text", example: "" },
+      { name: "madeUpFields", type: "list", example: "", doc: "Fields holding INVENTED test values (not real data). The importer refuses to load these into any database other than the local one. Replace them with real data and empty this list before going live." },
+    ],
+  },
+};

@@ -1,0 +1,4 @@
+key,name,country,birthYear,deathYear,gender,style,shortBio,photoUrl,galleryKeys,dataSource,sources,verified
+sadequain,Sadequain,Pakistan,1923,1987,male,Calligraphy,Painter and calligrapher.,,,web,https://en.wikipedia.org/wiki/Sadequain,false
+Sadequain 2,Sadequain Naqvi,Pakistan,1987,1923,Male,Abstrct,Duplicate with typos.,https://example.com/p.jpg,no-such-gallery,web,,maybe
+,No Key Artist,Pakistan,nineteen,,female,Realism,Missing key.,,,blog,,false
